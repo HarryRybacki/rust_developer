@@ -15,7 +15,14 @@ fn main() {
     // Determine and validate requested transmutation
     let transmutation: &str = &args[1];
 
-    let transmutations: [&str; 4] = ["lowercase", "uppercase", "no-spaces", "slugify"];
+    let transmutations: [&str; 6] = [
+        "lowercase",
+        "uppercase",
+        "no-spaces",
+        "trim",
+        "double",
+        "slugify",
+    ];
 
     if !transmutations.contains(&transmutation) {
         panic!("Invalid transmutation type selected. Please try again.");
@@ -37,9 +44,14 @@ fn main() {
         transmuted_str.push_str(&target_str.to_uppercase());
     } else if transmutation == "no-spaces" {
         transmuted_str.push_str(&target_str.replace(" ", ""))
+    } else if transmutation == "trim" {
+        transmuted_str.push_str(&target_str.trim());
+    } else if transmutation == "double" {
+        transmuted_str.push_str(&target_str);
+        transmuted_str.push_str(&target_str);
     } else if transmutation == "slugify" {
-        let slug_str = slugify(&target_str);
-        transmuted_str.push_str(&slug_str)
+        let slugged_str = slugify(&target_str);
+        transmuted_str.push_str(&slugged_str)
     }
 
     // Display results to stdout
