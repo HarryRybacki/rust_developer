@@ -1,21 +1,22 @@
-use std::env;
-use std::io;
+use std:: {
+    env,
+    io,
+    process,
+};
 
 use slug::slugify;
 
 fn main() {
-    // Store command line arguments and verify input provided
-    let args: Vec<String> = env::args().collect();
+    // report error call process exit if build() fails and unwrap explodes unexpectedly
+    let transmutation = env::args().nth(1).unwrap_or_else(|| {
+        eprintln!("Problem parsing arguments: transmutation not found.");
+        process::exit(1);
+    });
 
-    // Confirm transmutation was specified
-    if args.len() < 2 {
-        panic!("No transmutation type provided. Please pass desired transmutation through as an argument.")
-    }
+    // HACK -- how to better handle converting this to a &str?
+    let transmutation: &str = &transmutation;
 
-    // Determine and validate requested transmutation
-    let transmutation: &str = &args[1];
-
-    let transmutations: [&str; 6] = [
+    let transmutations = [
         "lowercase",
         "uppercase",
         "no-spaces",
