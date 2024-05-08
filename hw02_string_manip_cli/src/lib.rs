@@ -1,8 +1,8 @@
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, io};
 
 use slug::slugify;
 
-// TODO: find a better name for this
+// TODO: Is a custom error type needed?
 #[derive(Debug)]
 struct MyError {
     message: String,
@@ -107,20 +107,25 @@ fn csv(_target_str: &str) -> Result<String, Box<dyn Error>> {
     todo!()
 }
 
-pub fn run(transmutation: &str, target_str: &str) -> Result<(), Box<dyn Error>> {
-    println!("ENTERED RUN()");
-
+pub fn run(transmutation: &str) -> Result<(), Box<dyn Error>> {
     // Validate the chose transmutation or propogate the Err up to main()
     let valid_transmutation = validate_transmutation(transmutation)?;
 
+    // Collect target string from user input
+    println!("Please enter string to: '{}'", &valid_transmutation);
+    let mut target_str = String::new();
+    io::stdin()
+        .read_line(&mut target_str)
+        .expect("Failed to read input");
+
     let result = match valid_transmutation.as_ref() {
-        "lowercase" => lowercase_str(target_str),
-        "uppercase" => uppercase_str(target_str),
-        "no-spaces" => no_spaces_str(target_str),
-        "trim" => trim_str(target_str),
-        "double" => double_str(target_str),
-        "slugify" => slugify_str(target_str),
-        "csv" => csv(target_str),
+        "lowercase" => lowercase_str(&target_str),
+        "uppercase" => uppercase_str(&target_str),
+        "no-spaces" => no_spaces_str(&target_str),
+        "trim" => trim_str(&target_str),
+        "double" => double_str(&target_str),
+        "slugify" => slugify_str(&target_str),
+        "csv" => csv(&target_str),
         _ => unreachable!(), // valid_transmutation guarantees this arm is unreachable
     };
 
