@@ -1,4 +1,7 @@
-use std::{env, process};
+use std:: {
+    env,
+    process,
+};
 
 use hw02_string_manip_cli::run;
 
