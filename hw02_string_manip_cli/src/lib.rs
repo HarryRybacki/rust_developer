@@ -1,9 +1,8 @@
-use comfy_table;
+use comfy_table::{self, modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL};
 use csv::ReaderBuilder;
 use slug::slugify;
 use std::{
     error::Error,
-    fmt,
     io::{self, Read},
 };
 
@@ -144,6 +143,9 @@ fn csv_str(target_str: &str) -> Result<String, Box<dyn Error>> {
     } else {
         // Create a Table to store our data
         let mut table = comfy_table::Table::new();
+        table
+            .load_preset(UTF8_FULL)
+            .apply_modifier(UTF8_ROUND_CORNERS);
 
         // Create a Reader
         let mut rdr = ReaderBuilder::new()
