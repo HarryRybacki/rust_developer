@@ -1,7 +1,11 @@
-use std::{error::Error, fmt, io};
 use comfy_table;
 use csv::ReaderBuilder;
 use slug::slugify;
+use std::{
+    error::Error,
+    fmt,
+    io::{self, Read},
+};
 
 pub fn run(transmutation: &str) -> Result<(), Box<dyn Error>> {
     // Validate the chose transmutation or propogate the Err up to main()
@@ -10,16 +14,27 @@ pub fn run(transmutation: &str) -> Result<(), Box<dyn Error>> {
     // Collect target string from user input
     println!("Please enter string to: '{}'", &valid_transmutation);
     let mut target_str = String::new();
-    io::stdin()
-        .read_line(&mut target_str)
-        .expect("Failed to read input");
+
+    // Handle CSV case requiring multi-line input
+    match transmutation {
+        "csv" => io::stdin().read_to_string(&mut target_str)?,
+        _ => io::stdin().read_line(&mut target_str)?, // valid_transmutation guarantees no bad inputs
+    };
 
     // TODO CLEANUP THIS IS FOR TESTING CSV
-    let data = "\
+    let data1 = "\
 Name,Place,Id
 Mark,Zurich,1
 Ashley,Madrid,2
 John,New York,3
+";
+    let data2 = "\
+Language,Paradigm,Year,Creator,Rust_Inspiration
+C,Imperative,1972,Dennis Ritchie,Medium
+Java,Object-Oriented,1995,James Gosling,Low
+Python,Multi-Paradigm,1991,Guido van Rossum,Medium
+Rust,Multi-Paradigm,2010,Graydon Hoare,High
+Haskell,Functional,1990,Lennart Augustsson,Medium
 ";
 
     // Transmute target string
@@ -30,8 +45,8 @@ John,New York,3
         "trim" => trim_str(&target_str),
         "double" => double_str(&target_str),
         "slugify" => slugify_str(&target_str),
-        "csv" => csv_str(&data), // TODO clean up from testing w/ data
-        _ => unreachable!(),     // valid_transmutation guarantees this arm is unreachable
+        "csv" => csv_str(&data2), // TODO clean up from testing w/ data
+        _ => unreachable!(),      // valid_transmutation guarantees this arm is unreachable
     };
 
     // Print results or hand error back up to main()
