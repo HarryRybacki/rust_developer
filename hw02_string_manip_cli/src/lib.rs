@@ -1,5 +1,4 @@
 use std::{error::Error, fmt, io};
-
 use comfy_table;
 use csv::ReaderBuilder;
 use slug::slugify;
@@ -45,20 +44,6 @@ John,New York,3
     }
 }
 
-// TODO: Is a custom error type needed?
-#[derive(Debug)]
-struct MyError {
-    message: String,
-}
-
-impl fmt::Display for MyError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.message)
-    }
-}
-
-impl Error for MyError {}
-
 fn validate_transmutation(transmutation: &str) -> Result<String, Box<dyn Error>> {
     // Validate transmutation type
     let transmutations = vec![
@@ -74,16 +59,13 @@ fn validate_transmutation(transmutation: &str) -> Result<String, Box<dyn Error>>
     if transmutations.contains(&transmutation) {
         Ok(transmutation.to_string())
     } else {
-        // PICK UP HERE -- REMOVE MYERROR AND REPLACE WITH THIS SYNTAX. ASK CHATGPT WTF FROM::FROM IS ABOUT
         return Err(From::from("received invalid transmutation type provided"));
     }
 }
 
 fn lowercase_str(target_str: &str) -> Result<String, Box<dyn Error>> {
     if target_str.is_empty() || target_str == "\n" {
-        Err(Box::new(MyError {
-            message: format!("Input string is empty."),
-        }))
+        Err(From::from("input string is empty"))
     } else {
         let output = target_str.to_lowercase();
         Ok(output)
@@ -92,9 +74,7 @@ fn lowercase_str(target_str: &str) -> Result<String, Box<dyn Error>> {
 
 fn uppercase_str(target_str: &str) -> Result<String, Box<dyn Error>> {
     if target_str.is_empty() || target_str == "\n" {
-        Err(Box::new(MyError {
-            message: format!("Input string is empty."),
-        }))
+        Err(From::from("input string is empty"))
     } else {
         let output = target_str.to_uppercase();
         Ok(output)
@@ -103,9 +83,7 @@ fn uppercase_str(target_str: &str) -> Result<String, Box<dyn Error>> {
 
 fn no_spaces_str(target_str: &str) -> Result<String, Box<dyn Error>> {
     if target_str.is_empty() || target_str == "\n" {
-        Err(Box::new(MyError {
-            message: format!("Input string is empty."),
-        }))
+        Err(From::from("input string is empty"))
     } else {
         let output = target_str.trim().replace(" ", "");
         Ok(output)
@@ -114,9 +92,7 @@ fn no_spaces_str(target_str: &str) -> Result<String, Box<dyn Error>> {
 
 fn trim_str(target_str: &str) -> Result<String, Box<dyn Error>> {
     if target_str.is_empty() || target_str == "\n" {
-        Err(Box::new(MyError {
-            message: format!("Input string is empty."),
-        }))
+        Err(From::from("input string is empty"))
     } else {
         let output = target_str.trim().to_string();
         Ok(output)
@@ -124,9 +100,7 @@ fn trim_str(target_str: &str) -> Result<String, Box<dyn Error>> {
 }
 fn double_str(target_str: &str) -> Result<String, Box<dyn Error>> {
     if target_str.is_empty() || target_str == "\n" {
-        Err(Box::new(MyError {
-            message: format!("Input string is empty."),
-        }))
+        Err(From::from("input string is empty"))
     } else {
         let mut output = String::new();
         output.push_str(target_str);
@@ -137,9 +111,7 @@ fn double_str(target_str: &str) -> Result<String, Box<dyn Error>> {
 
 fn slugify_str(target_str: &str) -> Result<String, Box<dyn Error>> {
     if target_str.is_empty() || target_str == "\n" {
-        Err(Box::new(MyError {
-            message: format!("Input string is empty."),
-        }))
+        Err(From::from("input string is empty"))
     } else {
         let output = slugify(target_str);
         Ok(output)
@@ -148,9 +120,7 @@ fn slugify_str(target_str: &str) -> Result<String, Box<dyn Error>> {
 
 fn csv_str(target_str: &str) -> Result<String, Box<dyn Error>> {
     if target_str.is_empty() || target_str == "\n" {
-        Err(Box::new(MyError {
-            message: format!("Input string is empty."),
-        }))
+        Err(From::from("input string is empty"))
     } else {
         // Create a Table to store our data
         let mut table = comfy_table::Table::new();
