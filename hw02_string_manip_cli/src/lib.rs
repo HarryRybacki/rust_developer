@@ -7,7 +7,7 @@ use std::{
 };
 
 pub fn run(transmutation: &str) -> Result<String, Box<dyn Error>> {
-    // Validate the chose transmutation or propogate the Err up to main()
+    // Validate the chosen transmutation or hand Err up the call stack
     let valid_transmutation = validate_transmutation(transmutation)?;
 
     // Collect target string from user input
@@ -17,32 +17,8 @@ pub fn run(transmutation: &str) -> Result<String, Box<dyn Error>> {
     // Handle CSV case requiring multi-line input
     match transmutation {
         "csv" => io::stdin().read_to_string(&mut target_str)?,
-        _ => io::stdin().read_line(&mut target_str)?, // valid_transmutation guarantees no bad inputs
+        _ => io::stdin().read_line(&mut target_str)?, // valid_transmutation() guarantees no bad inputs
     };
-
-    // TODO CLEANUP THIS IS FOR TESTING CSV
-    let data1 = "\
-Name,Place,Id
-Mark,Zurich,1
-Ashley,Madrid,2
-John,New York,3
-";
-    let data2 = "\
-Language,Paradigm,Year,Creator,Rust_Inspiration
-C,Imperative,1972,Dennis Ritchie,Medium
-Java,Object-Oriented,1995,James Gosling,Low
-Python,Multi-Paradigm,1991,Guido van Rossum,Medium
-Rust,Multi-Paradigm,2010,Graydon Hoare,High
-Haskell,Functional,1990,Lennart Augustsson, Medium
-";
-    let data3 = "\
-Language,Paradigm,Year,Creator,Rust_Inspiration
-C,Imperative,1972,Dennis Ritchie,Medium
-Java,,1995,James Gosling,Low
-Python,Multi-Paradigm,1991,Guido van Rossum,Medium
-Rust,Multi-Paradigm,2010,Graydon Hoare,High
-Haskell,Functional,1990,Lennart Augustsson,
-";
 
     // Transmute target string
     let result = match valid_transmutation.as_ref() {
@@ -56,7 +32,7 @@ Haskell,Functional,1990,Lennart Augustsson,
         _ => unreachable!(),           // valid_transmutation guarantees this arm is unreachable
     };
 
-    // Return transmuted string or hand error back up to main()
+    // Return transmuted string or hand Err up the cal stack
     match result {
         Ok(output) => Ok(output),
         Err(e) => Err(e),
@@ -64,7 +40,7 @@ Haskell,Functional,1990,Lennart Augustsson,
 }
 
 fn validate_transmutation(transmutation: &str) -> Result<String, Box<dyn Error>> {
-    // Validate transmutation type
+    // Validate transmutation type or hand Err up the call stack
     let transmutations = vec![
         "lowercase",
         "uppercase",
@@ -171,7 +147,7 @@ fn csv_str(target_str: &str) -> Result<String, Box<dyn Error>> {
         }
 
         // Generate String from table and return
-        // TODO Is this okay or should we hand the exception up?
+        // to_string() should be infallible because comfy_table::Table impls `Display`
         let output = table.to_string();
         Ok(output)
     }
