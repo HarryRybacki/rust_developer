@@ -34,7 +34,15 @@ C,Imperative,1972,Dennis Ritchie,Medium
 Java,Object-Oriented,1995,James Gosling,Low
 Python,Multi-Paradigm,1991,Guido van Rossum,Medium
 Rust,Multi-Paradigm,2010,Graydon Hoare,High
-Haskell,Functional,1990,Lennart Augustsson,Medium
+Haskell,Functional,1990,Lennart Augustsson, Medium
+";
+    let data3 = "\
+Language,Paradigm,Year,Creator,Rust_Inspiration
+C,Imperative,1972,Dennis Ritchie,Medium
+Java,,1995,James Gosling,Low
+Python,Multi-Paradigm,1991,Guido van Rossum,Medium
+Rust,Multi-Paradigm,2010,Graydon Hoare,High
+Haskell,Functional,1990,Lennart Augustsson,
 ";
 
     // Transmute target string
@@ -45,8 +53,8 @@ Haskell,Functional,1990,Lennart Augustsson,Medium
         "trim" => trim_str(&target_str),
         "double" => double_str(&target_str),
         "slugify" => slugify_str(&target_str),
-        "csv" => csv_str(&data2), // TODO clean up from testing w/ data
-        _ => unreachable!(),      // valid_transmutation guarantees this arm is unreachable
+        "csv" => csv_str(&target_str), // TODO clean up from testing w/ data
+        _ => unreachable!(),           // valid_transmutation guarantees this arm is unreachable
     };
 
     // Print results or hand error back up to main()
@@ -141,7 +149,9 @@ fn csv_str(target_str: &str) -> Result<String, Box<dyn Error>> {
         let mut table = comfy_table::Table::new();
 
         // Create a Reader
-        let mut rdr = ReaderBuilder::new().from_reader(target_str.as_bytes());
+        let mut rdr = ReaderBuilder::new()
+            .flexible(true)
+            .from_reader(target_str.as_bytes());
 
         // Grab the headers
         let headers = rdr.headers()?.clone();
