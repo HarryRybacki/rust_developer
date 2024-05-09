@@ -10,8 +10,11 @@ fn main() {
     });
 
     // Execute transmutation or print error to stderr and exit
-    if let Err(e) = run(&transmutation) {
-        eprintln!("Problem running application: {}", e);
-        process::exit(1);
-    }
+    match run(&transmutation) {
+        Err(e) => {
+            eprintln!("Problem running application: {}", e);
+            process::exit(1);
+        }
+        Ok(transmuted_str) => println!("Transmutation result: \n{}", transmuted_str),
+    };
 }

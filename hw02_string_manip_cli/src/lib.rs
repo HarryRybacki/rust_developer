@@ -7,7 +7,7 @@ use std::{
     io::{self, Read},
 };
 
-pub fn run(transmutation: &str) -> Result<(), Box<dyn Error>> {
+pub fn run(transmutation: &str) -> Result<String, Box<dyn Error>> {
     // Validate the chose transmutation or propogate the Err up to main()
     let valid_transmutation = validate_transmutation(transmutation)?;
 
@@ -57,12 +57,9 @@ Haskell,Functional,1990,Lennart Augustsson,
         _ => unreachable!(),           // valid_transmutation guarantees this arm is unreachable
     };
 
-    // Print results or hand error back up to main()
+    // Return transmuted string or hand error back up to main()
     match result {
-        Ok(output) => {
-            println!("Transmutation result: {}", output);
-            Ok(())
-        }
+        Ok(output) => Ok(output),
         Err(e) => Err(e),
     }
 }
