@@ -3,13 +3,14 @@ use csv::ReaderBuilder;
 use slug::slugify;
 use std::{
     error::Error,
-    io::{self, Read},
+    fs::File,
+    io::Read,
     str::FromStr,
     sync::mpsc,
 };
 
-pub fn run(command: Command, input_str: String) -> Result<String, Box<dyn Error>> {
 
+pub fn run(command: Command, input_str: String) -> Result<String, Box<dyn Error>> {
     // TODO handle the CSV case
     /*
     // Handle CSV case requiring multi-line input
@@ -119,8 +120,24 @@ fn slugify_str(target_str: &str) -> Result<String, Box<dyn Error>> {
     }
 }
 
-fn csv_str(target_str: &str) -> Result<String, Box<dyn Error>> {
-    if target_str.is_empty() || target_str == "\n" {
+fn csv_str(file_path: &str) -> Result<String, Box<dyn Error>> {
+    /*
+    target_str should be a file which is a CSV that can be read
+     */
+    //"csv" => io::stdin().read_to_string(&mut target_str)?,
+    //let mut file = File::open(target_str)?;
+
+    let mut file = match File::open(file_path) {
+        Ok(file) => file,
+        // TODO improve this error return, handle file not found and use eprintln!
+        Err(_e) => return Err(From::from("unable to read csv file")),
+    };
+    println!("opened the file");
+    let mut csv_str = String::new();
+    println!("ported csv to string");
+    file.read_to_string(&mut csv_str)?;
+
+    if csv_str.is_empty() || csv_str == "\n" {
         Err(From::from("input string is empty"))
     } else {
         // Create a Table to store our data
@@ -132,7 +149,7 @@ fn csv_str(target_str: &str) -> Result<String, Box<dyn Error>> {
         // Create a Reader
         let mut rdr = ReaderBuilder::new()
             .flexible(true)
-            .from_reader(target_str.as_bytes());
+            .from_reader(csv_str.as_bytes());
 
         // Grab the headers
         let headers = rdr.headers()?.clone();
@@ -204,3 +221,5 @@ impl std::fmt::Display for CommandParseError {
         )
     }
 }
+
+// TODO implement the Debug trait for CommandParseError

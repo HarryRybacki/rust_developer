@@ -1,0 +1,10 @@
+csv 22
+Please choose your transmutation and input: <command> <input>
+entering csv_str()
+Current working directory: Ok("/Users/harry/Repos/rust_developer/hw04_multithreaded_cli")
+opened the file
+ported csv to string
+Transmutation result: 
+╭────────┬──────────┬────╮
+│ Name   ┆ Place    ┆ Id │
+╞════════╪══════════╪════╡
