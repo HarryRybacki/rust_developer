@@ -10,7 +10,6 @@ fn main() {
     let input_thread = thread::spawn(move || {
         if let Err(e) = process_input(tx) {
             eprintln!("Input Error: {e}");
-            process::exit(1);
         }
     });
 
@@ -20,11 +19,7 @@ fn main() {
             let (command, input_str) = request;
 
             match run(command, input_str) {
-                Err(e) => {
-                    eprintln!("Procesing Error: {}", e);
-                    // TODO do we still want to halt the program or let failures hit stderr and continue?
-                    // process::exit(1);
-                }
+                Err(e) => eprintln!("Procesing Error: {}", e),
                 Ok(transmuted_str) => println!("Transmutation result: \n{}", transmuted_str),
             };
         }

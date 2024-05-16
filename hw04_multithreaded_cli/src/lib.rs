@@ -162,7 +162,7 @@ fn read_csv_file(path: &str) -> Result<String, Box<dyn Error>> {
         },
     };
 
-    // Grab the contents and store them as a String to be processed 
+    // Grab the contents and store them as a String to be processed
     let mut csv_str = String::new();
     file.read_to_string(&mut csv_str)?;
 
