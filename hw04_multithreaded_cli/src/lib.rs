@@ -4,6 +4,8 @@ use slug::slugify;
 use std::{
     error::Error,
     io::{self, Read},
+    str::FromStr,
+    sync::mpsc,
 };
 
 pub fn run(transmutation: &str) -> Result<String, Box<dyn Error>> {
@@ -152,3 +154,93 @@ fn csv_str(target_str: &str) -> Result<String, Box<dyn Error>> {
         Ok(output)
     }
 }
+
+pub enum Command {
+    Lowercase,
+    Uppercase,
+    NoSpaces,
+    Trim,
+    Double,
+    Slugify,
+    Csv,
+}
+
+impl std::str::FromStr for Command {
+    type Err = CommandParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "lowercase" => Ok(Command::Lowercase),
+            "uppercase" => Ok(Command::Uppercase),
+            "no-spaces" => Ok(Command::NoSpaces),
+            "trim" => Ok(Command::Trim),
+            "double" => Ok(Command::Double),
+            "slugify" => Ok(Command::Slugify),
+            "csv" => Ok(Command::Csv),
+            _ => Err(CommandParseError),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct CommandParseError;
+
+impl Error for CommandParseError {}
+
+impl std::fmt::Display for CommandParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid command entered")
+    }
+}
+
+pub fn process_input(
+    tx: mpsc::Sender<(Command, String)>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut input = String::new();
+
+    loop {
+        input.clear();
+        std::io::stdin().read_line(&mut input)?;
+
+        let trimmed_input = input.trim();
+        if !trimmed_input.is_empty() {
+            let parts: Vec<&str> = trimmed_input.splitn(2, ' ').collect();
+            if parts.len() == 2 {
+                let command_str = parts[0];
+                let input_str = parts[1];
+                let command = Command::from_str(command_str)?;
+
+                let message = (command, input_str.to_string());
+                tx.send(message)?;
+            } else {
+                eprintln!("Invalid input format. Expected <command> <input>");
+            }
+        }
+    }
+}
+/*
+    let mut input = String::new();
+
+    loop {
+            std::io::stdin().read_line(&mut input)?;
+
+            let trimmed_input = input.trim();
+
+            if !trimmed_input.is_empty() {
+
+                // break input string into parts
+                let mut parts = trimmed_input.splitn(2, ' ');
+                let command_str = parts.next().unwrap();
+                let input_str = parts.next().unwrap();
+
+                // create Command enum and pass to rx thread
+                let command = Command::from_str(command_str)?;
+
+                tx.send(command, input_str);
+            } else {
+                println!("Failed to read from stdin.");
+            }
+    }
+
+}
+*/
