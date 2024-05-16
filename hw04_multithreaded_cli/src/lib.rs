@@ -8,30 +8,26 @@ use std::{
     sync::mpsc,
 };
 
-pub fn run(transmutation: &str) -> Result<String, Box<dyn Error>> {
-    // Validate the chosen transmutation or hand Err up the call stack
-    let valid_transmutation = validate_transmutation(transmutation)?;
+pub fn run(command: Command, input_str: String) -> Result<String, Box<dyn Error>> {
 
-    // Collect target string from user input
-    println!("Please enter string to: '{}'", &valid_transmutation);
-    let mut target_str = String::new();
-
+    // TODO handle the CSV case
+    /*
     // Handle CSV case requiring multi-line input
     match transmutation {
         "csv" => io::stdin().read_to_string(&mut target_str)?,
         _ => io::stdin().read_line(&mut target_str)?, // valid_transmutation() guarantees no bad inputs
     };
+    */
 
     // Transmute target string
-    let result = match valid_transmutation.as_ref() {
-        "lowercase" => lowercase_str(&target_str),
-        "uppercase" => uppercase_str(&target_str),
-        "no-spaces" => no_spaces_str(&target_str),
-        "trim" => trim_str(&target_str),
-        "double" => double_str(&target_str),
-        "slugify" => slugify_str(&target_str),
-        "csv" => csv_str(&target_str), // TODO clean up from testing w/ data
-        _ => unreachable!(),           // valid_transmutation guarantees this arm is unreachable
+    let result = match command {
+        Command::Lowercase => lowercase_str(&input_str),
+        Command::Uppercase => uppercase_str(&input_str),
+        Command::NoSpaces => no_spaces_str(&input_str),
+        Command::Trim => trim_str(&input_str),
+        Command::Double => double_str(&input_str),
+        Command::Slugify => slugify_str(&input_str),
+        Command::Csv => csv_str(&input_str),
     };
 
     // Return transmuted string or hand Err up the cal stack
@@ -41,23 +37,30 @@ pub fn run(transmutation: &str) -> Result<String, Box<dyn Error>> {
     }
 }
 
-// TODO remove redundant function as we move away from command line args
-fn validate_transmutation(transmutation: &str) -> Result<String, Box<dyn Error>> {
-    // Validate transmutation type or hand Err up the call stack
-    let transmutations = vec![
-        "lowercase",
-        "uppercase",
-        "no-spaces",
-        "trim",
-        "double",
-        "slugify",
-        "csv",
-    ];
+pub fn process_input(
+    tx: mpsc::Sender<(Command, String)>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut input = String::new();
 
-    if transmutations.contains(&transmutation) {
-        Ok(transmutation.to_string())
-    } else {
-        return Err(From::from("received invalid transmutation type provided"));
+    loop {
+        input.clear(); // sanitize input before reading the next line
+        println!("Please choose your transmutation and input: <command> <input>");
+        std::io::stdin().read_line(&mut input)?;
+
+        let trimmed_input = input.trim();
+        if !trimmed_input.is_empty() {
+            let parts: Vec<&str> = trimmed_input.splitn(2, ' ').collect();
+            if parts.len() == 2 {
+                let command_str = parts[0];
+                let input_str = parts[1];
+                let command = Command::from_str(command_str)?;
+
+                let message = (command, input_str.to_string());
+                tx.send(message)?;
+            } else {
+                eprintln!("invalid input -- expected: <command> <input>");
+            }
+        }
     }
 }
 
@@ -196,61 +199,8 @@ impl std::fmt::Display for CommandParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "invalid command entered: '{}' Valid commands are: 'lowercase', 'uppercase', 'no-spaces', 'trim', 'double', 'slugify', and 'csv'",
+            "invalid command provided: '{}' -- valid commands are: 'lowercase', 'uppercase', 'no-spaces', 'trim', 'double', 'slugify', and 'csv'",
             self.invalid_command
         )
     }
 }
-
-pub fn process_input(
-    tx: mpsc::Sender<(Command, String)>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut input = String::new();
-
-    loop {
-        input.clear(); // sanitize input before reading the next line
-        println!("Please choose your transmutation and input: <command> <input>");
-        std::io::stdin().read_line(&mut input)?;
-
-        let trimmed_input = input.trim();
-        if !trimmed_input.is_empty() {
-            let parts: Vec<&str> = trimmed_input.splitn(2, ' ').collect();
-            if parts.len() == 2 {
-                let command_str = parts[0];
-                let input_str = parts[1];
-                let command = Command::from_str(command_str)?;
-
-                let message = (command, input_str.to_string());
-                tx.send(message)?;
-            } else {
-                eprintln!("Invalid input format. Expected <command> <input>");
-            }
-        }
-    }
-}
-/*
-    let mut input = String::new();
-
-    loop {
-            std::io::stdin().read_line(&mut input)?;
-
-            let trimmed_input = input.trim();
-
-            if !trimmed_input.is_empty() {
-
-                // break input string into parts
-                let mut parts = trimmed_input.splitn(2, ' ');
-                let command_str = parts.next().unwrap();
-                let input_str = parts.next().unwrap();
-
-                // create Command enum and pass to rx thread
-                let command = Command::from_str(command_str)?;
-
-                tx.send(command, input_str);
-            } else {
-                println!("Failed to read from stdin.");
-            }
-    }
-
-}
-*/

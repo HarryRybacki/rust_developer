@@ -1,16 +1,8 @@
-use std::{sync::mpsc, thread};
+use std::{process, sync::mpsc, thread};
 
 use hw04_multithreaded_cli::{process_input, run};
 
 fn main() {
-    /* TODO remove redundant function as we move away from command line args
-    // Grab transmutation type from args or print error to stderr and exit
-    let transmutation = env::args().nth(1).unwrap_or_else(|| {
-        eprintln!("expected 1 argument, but got none");
-        process::exit(1);
-    });
-     */
-
     // Create channel for threads to communicate within
     let (tx, rx) = mpsc::channel();
 
@@ -18,6 +10,7 @@ fn main() {
     let input_thread = thread::spawn(move || {
         if let Err(e) = process_input(tx) {
             eprintln!("Error handling input: {e}");
+            process::exit(1);
         }
     });
 
@@ -26,23 +19,18 @@ fn main() {
         for request in rx {
             let (command, input_str) = request;
 
-            // TODO pickup here; reconnect to run()
-            println!("We have received {input_str}");
+            match run(command, input_str) {
+                Err(e) => {
+                    eprintln!("problem running application: {}", e);
+                    // TODO do we still want to halt the program or let failures hit stderr and continue?
+                    // process::exit(1);
+                }
+                Ok(transmuted_str) => println!("Transmutation result: \n{}", transmuted_str),
+            };
         }
     });
 
-    /* TODO remove redundant function as we move away from command line args
-
-    // Perform transmutation and print resulting str or gracefully handle error and exit
-    match run(&transmutation) {
-        Err(e) => {
-            eprintln!("problem running application: {}", e);
-            process::exit(1);
-        }
-        Ok(transmuted_str) => println!("Transmutation result: \n{}", transmuted_str),
-    };
-     */
-
+    // keep main() running until threads close
     let _ = input_thread.join();
     let _ = processing_thread.join();
 }
