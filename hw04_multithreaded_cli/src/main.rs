@@ -1,6 +1,6 @@
 use std::{sync::mpsc, thread};
 
-use hw02_string_manip_cli::{process_input, run};
+use hw04_multithreaded_cli::{process_input, run};
 
 fn main() {
     /* Commenting out this section, may come back into play later.
