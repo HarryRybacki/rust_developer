@@ -41,6 +41,7 @@ pub fn run(transmutation: &str) -> Result<String, Box<dyn Error>> {
     }
 }
 
+// TODO remove redundant function as we move away from command line args
 fn validate_transmutation(transmutation: &str) -> Result<String, Box<dyn Error>> {
     // Validate transmutation type or hand Err up the call stack
     let transmutations = vec![
@@ -177,19 +178,27 @@ impl std::str::FromStr for Command {
             "double" => Ok(Command::Double),
             "slugify" => Ok(Command::Slugify),
             "csv" => Ok(Command::Csv),
-            _ => Err(CommandParseError),
+            _ => Err(CommandParseError {
+                invalid_command: s.to_string(),
+            }),
         }
     }
 }
 
 #[derive(Debug)]
-pub struct CommandParseError;
+pub struct CommandParseError {
+    invalid_command: String,
+}
 
 impl Error for CommandParseError {}
 
 impl std::fmt::Display for CommandParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "invalid command entered")
+        write!(
+            f,
+            "invalid command entered: '{}' Valid commands are: 'lowercase', 'uppercase', 'no-spaces', 'trim', 'double', 'slugify', and 'csv'",
+            self.invalid_command
+        )
     }
 }
 
@@ -199,7 +208,8 @@ pub fn process_input(
     let mut input = String::new();
 
     loop {
-        input.clear();
+        input.clear(); // sanitize input before reading the next line
+        println!("Please choose your transmutation and input: <command> <input>");
         std::io::stdin().read_line(&mut input)?;
 
         let trimmed_input = input.trim();

@@ -3,7 +3,7 @@ use std::{sync::mpsc, thread};
 use hw04_multithreaded_cli::{process_input, run};
 
 fn main() {
-    /* Commenting out this section, may come back into play later.
+    /* TODO remove redundant function as we move away from command line args
     // Grab transmutation type from args or print error to stderr and exit
     let transmutation = env::args().nth(1).unwrap_or_else(|| {
         eprintln!("expected 1 argument, but got none");
@@ -31,7 +31,8 @@ fn main() {
         }
     });
 
-    /* Commenting out this section as well while we work on the threads
+    /* TODO remove redundant function as we move away from command line args
+
     // Perform transmutation and print resulting str or gracefully handle error and exit
     match run(&transmutation) {
         Err(e) => {
