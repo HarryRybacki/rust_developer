@@ -1,25 +1,9 @@
 use comfy_table::{self, modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL};
 use csv::ReaderBuilder;
 use slug::slugify;
-use std::{
-    error::Error,
-    fs::File,
-    io::Read,
-    str::FromStr,
-    sync::mpsc,
-};
-
+use std::{error::Error, fs::File, io::Read, path, str::FromStr, sync::mpsc};
 
 pub fn run(command: Command, input_str: String) -> Result<String, Box<dyn Error>> {
-    // TODO handle the CSV case
-    /*
-    // Handle CSV case requiring multi-line input
-    match transmutation {
-        "csv" => io::stdin().read_to_string(&mut target_str)?,
-        _ => io::stdin().read_line(&mut target_str)?, // valid_transmutation() guarantees no bad inputs
-    };
-    */
-
     // Transmute target string
     let result = match command {
         Command::Lowercase => lowercase_str(&input_str),
@@ -121,24 +105,11 @@ fn slugify_str(target_str: &str) -> Result<String, Box<dyn Error>> {
 }
 
 fn csv_str(file_path: &str) -> Result<String, Box<dyn Error>> {
-    /*
-    target_str should be a file which is a CSV that can be read
-     */
-    //"csv" => io::stdin().read_to_string(&mut target_str)?,
-    //let mut file = File::open(target_str)?;
-
-    let mut file = match File::open(file_path) {
-        Ok(file) => file,
-        // TODO improve this error return, handle file not found and use eprintln!
-        Err(_e) => return Err(From::from("unable to read csv file")),
-    };
-    println!("opened the file");
-    let mut csv_str = String::new();
-    println!("ported csv to string");
-    file.read_to_string(&mut csv_str)?;
+    // Convert csv at `filepath` to String or return error up the stack
+    let csv_str = read_csv_file(file_path)?;
 
     if csv_str.is_empty() || csv_str == "\n" {
-        Err(From::from("input string is empty"))
+        Err(From::from("input csv is empty"))
     } else {
         // Create a Table to store our data
         let mut table = comfy_table::Table::new();
@@ -176,6 +147,27 @@ fn csv_str(file_path: &str) -> Result<String, Box<dyn Error>> {
     }
 }
 
+fn read_csv_file(path: &str) -> Result<String, Box<dyn Error>> {
+    let path = path::Path::new(path);
+
+    // Open the file or return specific error up the stack
+    let mut file = match File::open(path) {
+        Ok(file) => file,
+        Err(e) => match e.kind() {
+            std::io::ErrorKind::NotFound => return Err(From::from("Error: CSV file not found")),
+            std::io::ErrorKind::PermissionDenied => {
+                return Err(From::from("Error: Permission denied"))
+            }
+            _ => return Err(From::from("Unable to process CSV file")),
+        },
+    };
+
+    // Grab the contents and store them as a String to be processed 
+    let mut csv_str = String::new();
+    file.read_to_string(&mut csv_str)?;
+
+    Ok(csv_str)
+}
 pub enum Command {
     Lowercase,
     Uppercase,

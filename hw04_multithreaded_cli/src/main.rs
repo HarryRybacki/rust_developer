@@ -9,7 +9,7 @@ fn main() {
     // Spawn a thread to process input from stdin
     let input_thread = thread::spawn(move || {
         if let Err(e) = process_input(tx) {
-            eprintln!("Error handling input: {e}");
+            eprintln!("Input Error: {e}");
             process::exit(1);
         }
     });
@@ -21,7 +21,7 @@ fn main() {
 
             match run(command, input_str) {
                 Err(e) => {
-                    eprintln!("problem running application: {}", e);
+                    eprintln!("Procesing Error: {}", e);
                     // TODO do we still want to halt the program or let failures hit stderr and continue?
                     // process::exit(1);
                 }
@@ -30,7 +30,7 @@ fn main() {
         }
     });
 
-    // keep main() running until threads close
+    // Keep main() running until threads close
     let _ = input_thread.join();
     let _ = processing_thread.join();
 }
