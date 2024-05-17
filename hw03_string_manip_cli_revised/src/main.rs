@@ -1,6 +1,6 @@
 use std::{env, process};
 
-use hw02_string_manip_cli::run;
+use hw03_string_manip_cli_revised::run;
 
 fn main() {
     // Grab transmutation type from args or print error to stderr and exit

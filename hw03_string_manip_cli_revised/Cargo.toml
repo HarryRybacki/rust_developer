@@ -1,5 +1,5 @@
 [package]
-name = "hw02_string_manip_cli"
+name = "hw03_string_manip_cli_revised"
 version = "0.1.0"
 edition = "2021"
 
