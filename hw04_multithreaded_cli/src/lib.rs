@@ -1,51 +1,94 @@
-use comfy_table::{self, modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL};
 use csv::ReaderBuilder;
+use std::{env, error::Error, fs::File, io::Read, path, str::FromStr, sync::mpsc};
+
+use comfy_table::{self, modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL};
 use slug::slugify;
-use std::{error::Error, fs::File, io::Read, path, str::FromStr, sync::mpsc};
-
-pub fn run(command: Command, input_str: String) -> Result<String, Box<dyn Error>> {
-    // Transmute target string
-    let result = match command {
-        Command::Lowercase => lowercase_str(&input_str),
-        Command::Uppercase => uppercase_str(&input_str),
-        Command::NoSpaces => no_spaces_str(&input_str),
-        Command::Trim => trim_str(&input_str),
-        Command::Double => double_str(&input_str),
-        Command::Slugify => slugify_str(&input_str),
-        Command::Csv => csv_str(&input_str),
-    };
-
-    // Return transmuted string or hand Err up the cal stack
-    match result {
-        Ok(output) => Ok(output),
-        Err(e) => Err(e),
-    }
-}
 
 pub fn process_input(
     tx: mpsc::Sender<(Command, String)>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut input = String::new();
 
-    loop {
-        input.clear(); // sanitize input before reading the next line
-        println!("Please choose your transmutation and input: <command> <input>");
-        std::io::stdin().read_line(&mut input)?;
+    // If args present, assume non-interactive mode requested
+    let args: Vec<String> = env::args().collect();
+    match args.len() {
+        2 | 3 => {
+            let command = Command::from_str(&args[1])?;
 
-        let trimmed_input = input.trim();
-        if !trimmed_input.is_empty() {
-            let parts: Vec<&str> = trimmed_input.splitn(2, ' ').collect();
-            if parts.len() == 2 {
-                let command_str = parts[0];
-                let input_str = parts[1];
-                let command = Command::from_str(command_str)?;
+            // Collect target string from user input
+            println!("Please enter string to: '{}'", &args[1]);
+            let mut input_str = String::new();
 
-                let message = (command, input_str.to_string());
-                tx.send(message)?;
-            } else {
-                eprintln!("invalid input -- expected: <command> <input>");
+            // Handle CSV case requiring multi-line input
+            match command {
+                Command::Csv => std::io::stdin().read_to_string(&mut input_str)?,
+                _ => std::io::stdin().read_line(&mut input_str)?,
+            };
+
+            let message = (command, input_str);
+            tx.send(message)?;
+
+            return Ok(());
+        }
+        _ => {
+            // no args provided or something weird happend, enter interactive mode
+            loop {
+                input.clear();
+
+                println!("Please choose your transmutation and input: <command> <input>");
+                std::io::stdin().read_line(&mut input)?;
+
+                let trimmed_input = input.trim();
+                if !trimmed_input.is_empty() {
+                    let parts: Vec<&str> = trimmed_input.splitn(2, ' ').collect();
+                    if parts.len() == 2 {
+                        let command_str = parts[0];
+                        let input_str = parts[1];
+                        let command = Command::from_str(command_str)?;
+                        let message = (command, input_str.to_string());
+                        tx.send(message)?;
+                    } else {
+                        eprintln!("invalid input -- expected: <command> <input>");
+                    }
+                }
             }
         }
+    }
+}
+
+pub fn run(command: Command, input_str: String) -> Result<String, Box<dyn Error>> {
+    /*
+    Handle the special case where a user is in non-interactive mode
+    (argument driven) and will provide a String of CSV rather than a filepath
+    If a filepath exists, attempt to stringify its contents.
+     */
+    let final_input_str: String = match command {
+        Command::Csv => {
+            if path::Path::new(&input_str).exists() {
+                let csv_str = read_csv_file(&input_str)?;
+                csv_str
+            } else {
+                input_str
+            }
+        }
+        _ => input_str,
+    };
+
+    // Transmute target string
+    let result = match command {
+        Command::Lowercase => lowercase_str(&final_input_str),
+        Command::Uppercase => uppercase_str(&final_input_str),
+        Command::NoSpaces => no_spaces_str(&final_input_str),
+        Command::Trim => trim_str(&final_input_str),
+        Command::Double => double_str(&final_input_str),
+        Command::Slugify => slugify_str(&final_input_str),
+        Command::Csv => csv_str(&final_input_str),
+    };
+
+    // Return transmuted string or hand Err up the cal stack
+    match result {
+        Ok(output) => Ok(output),
+        Err(e) => Err(e),
     }
 }
 
@@ -104,11 +147,9 @@ fn slugify_str(target_str: &str) -> Result<String, Box<dyn Error>> {
     }
 }
 
-fn csv_str(file_path: &str) -> Result<String, Box<dyn Error>> {
-    // Convert csv at `filepath` to String or return error up the stack
-    let csv_str = read_csv_file(file_path)?;
-
-    if csv_str.is_empty() || csv_str == "\n" {
+fn csv_str(target_str: &str) -> Result<String, Box<dyn Error>> {
+    // Assume 'empty' csv strings are invalid
+    if target_str.is_empty() || target_str == "\n" {
         Err(From::from("input csv is empty"))
     } else {
         // Create a Table to store our data
@@ -120,7 +161,7 @@ fn csv_str(file_path: &str) -> Result<String, Box<dyn Error>> {
         // Create a Reader
         let mut rdr = ReaderBuilder::new()
             .flexible(true)
-            .from_reader(csv_str.as_bytes());
+            .from_reader(target_str.as_bytes());
 
         // Grab the headers
         let headers = rdr.headers()?.clone();
@@ -150,6 +191,7 @@ fn csv_str(file_path: &str) -> Result<String, Box<dyn Error>> {
 fn read_csv_file(path: &str) -> Result<String, Box<dyn Error>> {
     let path = path::Path::new(path);
 
+    // TODO let the calling area handle the error it returns if any?
     // Open the file or return specific error up the stack
     let mut file = match File::open(path) {
         Ok(file) => file,
@@ -158,7 +200,10 @@ fn read_csv_file(path: &str) -> Result<String, Box<dyn Error>> {
             std::io::ErrorKind::PermissionDenied => {
                 return Err(From::from("Error: Permission denied"))
             }
-            _ => return Err(From::from("Unable to process CSV file")),
+            _ => {
+                eprintln!("{}", e.kind());
+                return Err(From::from("Unable to process CSV file"));
+            }
         },
     };
 
@@ -208,7 +253,7 @@ impl std::fmt::Display for CommandParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "invalid command provided: '{}' -- valid commands are: 'lowercase', 'uppercase', 'no-spaces', 'trim', 'double', 'slugify', and 'csv'",
+            "invalid command provided: '{}'\nValid commands are: 'lowercase', 'uppercase', 'no-spaces', 'trim', 'double', 'slugify', and 'csv'",
             self.invalid_command
         )
     }

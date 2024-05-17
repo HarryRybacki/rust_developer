@@ -1,4 +1,4 @@
-use std::{process, sync::mpsc, thread};
+use std::{sync::mpsc, thread};
 
 use hw04_multithreaded_cli::{process_input, run};
 

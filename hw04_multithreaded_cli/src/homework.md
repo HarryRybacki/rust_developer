@@ -27,7 +27,7 @@ You'll be tasked with implementing multi-threading in your Rust application. Thi
 
 ### 5. Bonus Challenge - Oneshot Functionality:
 
-  [] If you're looking for an additional challenge, implement a mechanism where the program enters the interactive mode only when there are no CLI arguments provided. If arguments are given, the program should operate in the previous way, processing the command directly.
+  [X] If you're looking for an additional challenge, implement a mechanism where the program enters the interactive mode only when there are no CLI arguments provided. If arguments are given, the program should operate in the previous way, processing the command directly.
 
 ### Questions:
 
