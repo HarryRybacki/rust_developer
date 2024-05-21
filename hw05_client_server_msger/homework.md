@@ -6,7 +6,7 @@ Diving deeper into Rust's capabilities, this assignment will have you explore th
 
 ### 1. Removing Text Transformation Functionality:
 
-  [] Before delving into this assignment, ensure you've removed the text transformation functionality from your previous homework. This task will focus solely on networking.
+  [X] Before delving into this assignment, ensure you've removed the text transformation functionality from your previous homework. This task will focus solely on networking.
 
 ### 2. Wire Format:
 
