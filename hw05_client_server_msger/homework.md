@@ -10,15 +10,15 @@ Diving deeper into Rust's capabilities, this assignment will have you explore th
 
 ### 2. Wire Format:
 
-  [] For the format in which data is sent and received over the network, consider using one of the following:
-    * serde_cbor
+  [X] For the format in which data is sent and received over the network, consider using one of the following:
+    * serde_cbor -- we will try this one.
     * bincode
     * postcard
   These crates can help serialize and deserialize data efficiently for network transfer.
 
 ### 3. Server Creation:
 
-  [] Design the server to receive messages from multiple clients.
+  [X] Design the server to receive messages from multiple clients.
   [] Accept port and hostname as parameters. If none are provided, default to localhost:11111.
   [] Setting the hostname to 0.0.0.0 will allow connections from any IP.
 
@@ -49,3 +49,24 @@ Diving deeper into Rust's capabilities, this assignment will have you explore th
 ### Questions:
 
 1. 
+
+### Class Notes:
+
+
+structure 
+
+src/
+  bin/ 
+    client.rs
+  main.rs
+  lib.rs
+
+Running client
+
+  cargo run -- hw05
+
+Running server
+
+  cargo run --bin client
+
+Remember to do the 'prefix length' for sending/rxing
