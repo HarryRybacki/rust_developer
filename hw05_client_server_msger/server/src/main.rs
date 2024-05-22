@@ -1,10 +1,15 @@
+use std::env;
+
 fn main() {
     println!("entering server::main()");
 
-    // TODO: Process parameters to determine hostname and what not for server
-    let address = "127.0.0.1:8080";
+    // Process parameters to determine hostname and what not for server
+    let args: Vec<String> = env::args().collect();
+    let address = common::get_hostname(args);
+    println!("Server address set to: {}", address);
 
-    let _server = server::listen_and_accept(address);
+    // Create the server and begin routing
+    let _server = server::listen_and_accept(&address);
 
     println!("Leaving server::main()");
 }

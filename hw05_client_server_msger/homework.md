@@ -19,7 +19,7 @@ Diving deeper into Rust's capabilities, this assignment will have you explore th
 ### 3. Server Creation:
 
   [X] Design the server to receive messages from multiple clients.
-  [] Accept port and hostname as parameters. If none are provided, default to localhost:11111.
+  [X] Accept port and hostname as parameters. If none are provided, default to localhost:11111.
   [] Setting the hostname to 0.0.0.0 will allow connections from any IP.
 
 ### 4. Client Creation:
@@ -48,9 +48,11 @@ Diving deeper into Rust's capabilities, this assignment will have you explore th
 
 ### Usage:
 
-1. Launch the server from terminal 1: `cargo run --bin server`
+1. Launch the server from terminal 1: `cargo run --bin server -- <server ip> <server port>`
 2. Call client to pass message to server from terminal 2: `cargo run --bin client`
 3. Confirm message received in stdout of terminal 1.
+
+Note: The server can be called without specifiying an IP/Port. In that case, a default address of localhost:11111 will be used.
 
 ### Questions:
 
