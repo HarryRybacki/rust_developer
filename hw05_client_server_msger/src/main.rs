@@ -1,15 +1,4 @@
-use hw05_client_server_msger::listen_and_accept;
-
 fn main() {
-    println!("entering main::main()");
-
-    // TODO: Process parameters to determine hostname and what not for server
-    let address = "127.0.0.1:8080";
-
-    let server = listen_and_accept(address);
-
-    println!("Leaving main::main()");
-
     /*
     // Create channel for threads to communicate within
     let (tx, rx) = mpsc::channel();

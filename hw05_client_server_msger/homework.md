@@ -46,6 +46,12 @@ Diving deeper into Rust's capabilities, this assignment will have you explore th
 
   [] For an extra point, design the client to automatically convert any received image to .png format. This could necessitate some exploration and potentially the addition of other crates.
 
+### Usage:
+
+1. Launch the server from terminal 1: `cargo run --bin server`
+2. Call client to pass message to server from terminal 2: `cargo run --bin client`
+3. Confirm message received in stdout of terminal 1.
+
 ### Questions:
 
 1. 

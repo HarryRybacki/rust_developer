@@ -1,9 +1,9 @@
 use std::net::TcpStream;
 
-use hw05_client_server_msger::{send_message, MessageType};
+use common::{send_message, MessageType};
 
 // Stub client code to just send something to the server for testing
-fn main() {
+pub fn run_client() {
     println!("In client::main()");
 
     // Create a message
@@ -14,7 +14,7 @@ fn main() {
 
     let mut stream = TcpStream::connect(address).unwrap();
 
-    let result = send_message(&mut stream, message);
+    let _result = send_message(&mut stream, message);
 
     // catch a response?
 
