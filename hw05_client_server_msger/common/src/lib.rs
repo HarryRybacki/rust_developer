@@ -1,8 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{
-    io::Write,
-    net::TcpStream,
-};
+use std::{error::Error, io::Write, net::TcpStream};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum MessageType {
@@ -21,23 +18,22 @@ pub fn deseralize_msg(input: &[u8]) -> MessageType {
     serde_json::from_slice(input).unwrap()
 }
 
-pub fn send_message(stream: &mut TcpStream, message: MessageType) {
+pub fn send_message(stream: &mut TcpStream, message: MessageType) -> Result<(), Box<dyn Error>> {
     println!("Entering send_message()");
     // Serialize the message for tx
     let serialized_msg = serialize_msg(message);
 
-    // Open a stream to the server
-    //let mut stream = TcpStream::connect(address).unwrap();
-
     // Send length of serialized message (as 4-byte value)
     let len = serialized_msg.len() as u32;
     // QUESTION: why <u32>.to_be_bytes() -> write, not write_all?
-    stream.write(&len.to_be_bytes()).unwrap();
+    stream.write(&len.to_be_bytes())?;
 
     // Send the serialized message
     // QUESTION: why <String>.as_bytes() -> write_all, not write?
-    stream.write_all(&serialized_msg.as_bytes()).unwrap();
+    stream.write_all(&serialized_msg.as_bytes())?;
     println!("Exiting send_message()");
+
+    Ok(())
 }
 
 pub fn get_hostname(args: Vec<String>) -> String {
@@ -49,8 +45,8 @@ pub fn get_hostname(args: Vec<String>) -> String {
             dbg!("{}", args.clone());
             server_hostname = args[1].clone();
             server_port = args[2].clone();
-        },
-        _ => { 
+        }
+        _ => {
             server_hostname = String::from("localhost");
             server_port = String::from("11111");
         }
