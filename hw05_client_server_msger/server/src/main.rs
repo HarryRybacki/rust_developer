@@ -1,8 +1,6 @@
 use std::env;
 
 fn main() {
-    println!("entering server::main()");
-
     // Process parameters to determine hostname and what not for server
     let args: Vec<String> = env::args().collect();
     let address = common::get_hostname(args);
@@ -13,6 +11,4 @@ fn main() {
         Err(e) => eprintln!("Server error: {}", e),
         Ok(()) => println!("Server shutting down... goodnight."),
     }
-
-    println!("leaving server::main()");
 }

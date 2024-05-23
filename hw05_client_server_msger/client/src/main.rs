@@ -8,7 +8,12 @@ fn main() {
     let server_address = common::get_hostname(args);
     println!("Remote server address: {}", server_address);
 
-    client::run_client(&server_address);
+    match client::run_client(&server_address) {
+        Ok(()) => println!("Client run successful. Exiting..."),
+        Err(e) => {
+            eprintln!("Encountered error while running client: {}", e)
+        }
+    }
 
     println!("leaving client::main()");
 }

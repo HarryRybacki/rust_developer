@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{error::Error, io::Write, net::TcpStream};
+use std::{error::Error, io::Read, io::Write, net::TcpStream};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum MessageType {
@@ -19,7 +19,7 @@ pub fn deseralize_msg(input: &[u8]) -> MessageType {
 }
 
 pub fn send_message(stream: &mut TcpStream, message: MessageType) -> Result<(), Box<dyn Error>> {
-    println!("Entering send_message()");
+    println!("Entering common::send_message()");
     // Serialize the message for tx
     let serialized_msg = serialize_msg(message);
 
@@ -31,9 +31,36 @@ pub fn send_message(stream: &mut TcpStream, message: MessageType) -> Result<(), 
     // Send the serialized message
     // QUESTION: why <String>.as_bytes() -> write_all, not write?
     stream.write_all(&serialized_msg.as_bytes())?;
-    println!("Exiting send_message()");
 
+    println!("Exiting send_message()\n sent: {}", &serialized_msg);
     Ok(())
+}
+
+pub fn receive_message(mut stream: &mut TcpStream) -> Result<MessageType, Box<dyn Error>> {
+    println!("Entering common::recieve_messsage()");
+
+    // get length of message
+    let mut len_bytes = [0u8; 4];
+
+    // Attempt to read from the stream, raise Error if needed
+    // TODO: Is there a better way to no there is no message in the Stream?
+    match stream.read_exact(&mut len_bytes) {
+        Ok(_) => {
+            let len = u32::from_be_bytes(len_bytes) as usize;
+
+            // fetch message from buffer
+            let mut buffer = vec![0u8; len];
+            stream.read_exact(&mut buffer)?;
+
+            println!("Exiting common::receieve_message() [IN OKAY MATCH]");
+            // Deseralize and return message from buffer
+            Ok(deseralize_msg(&buffer))
+        }
+        Err(e) => {
+            println!("Exiting common::receieve_message() [IN ERROR MATCH]");
+            Err(From::from(e))
+        }
+    }
 }
 
 pub fn get_hostname(args: Vec<String>) -> String {

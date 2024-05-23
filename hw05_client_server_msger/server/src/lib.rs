@@ -18,7 +18,7 @@ use common::{send_message, MessageType};
 ///
 /// TODO: How do we know when to halt the server?
 pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
-    println!("Entering listen_and_accept()");
+    println!("Entering server::listen_and_accept()");
 
     // Establish TcpListener to capture incoming streams
     let listener = TcpListener::bind(address)?;
@@ -27,18 +27,20 @@ pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
 
     // Monitor stream and handle incoming connections
     for stream in listener.incoming() {
-        println!("New stream from the listener");
+        println!("Server is opening a new stream");
 
         let mut stream = stream?;
         let clients = Arc::clone(&clients);
 
         thread::spawn(move || match handle_client(stream, clients) {
             Ok(()) => println!("client handled succesfully within thread"),
-            Err(e) => eprintln!("encountered server error within thread: {}", e),
+            Err(e) => {
+                eprintln!("encountered server error within thread: {}", e)
+            }
         });
     }
 
-    println!("Exiting listen_and_accept()");
+    println!("Exiting server::listen_and_accept()");
     Ok(())
 }
 
@@ -46,7 +48,7 @@ fn handle_client(
     mut stream: TcpStream,
     clients: Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
 ) -> Result<(), ServerError> {
-    println!("New connection and call to handle_client()");
+    println!("Entering server::handle_client()");
 
     // Attempt to store the client in the clients HashMap
     let addr = stream.peer_addr()?;
@@ -55,48 +57,43 @@ fn handle_client(
     clients_guard.insert(addr, stream.try_clone()?);
 
     loop {
-        let msg = match read_message(&mut stream) {
+        let msg = match common::receive_message(&mut stream) {
             Ok(msg) => msg,
             Err(e) => {
                 eprintln!(
                     "Server error encountered reading message from stream: {:?}",
                     e
                 );
+                // TODO: How do I gracefully catch errors where the client closes the connection?
+                let mut clients_guard = clients.lock().unwrap();
+                println!("Server is dropping client 'IN LOOP' at: {}", &addr);
+                clients_guard.remove(&addr);
+                eprintln!("TEST");
                 break;
             }
         };
 
-        println!("Received message from {}: {:?}", addr, msg);
+        println!("Server rx'd message from client {}: {:?}", addr, msg);
+        println!("Server preparing confirmation of receipt");
+        let response = format!("Server confirms message receipt from you: '{}'", &addr);
 
-        let response = MessageType::Text(String::from("Message received..."));
-        if let Err(e) = send_message(&mut stream, response) {
+        let response_for_client = MessageType::Text(String::from(response));
+        if let Err(e) = send_message(&mut stream, response_for_client) {
             println!("Error sending response: {:?}", e);
             break;
         }
     }
 
+    // About to close connection, drop the client from the Servers tracker
     {
+        // TODO: Figure out why you never seem to get here. Errors fail sooner up
         let mut clients_guard = clients.lock().unwrap();
+        println!("Server is dropping client 'OUT OF LOOP' at: {}", &addr);
         clients_guard.remove(&addr);
     }
     Ok(())
 }
 
-fn read_message(mut stream: &mut TcpStream) -> Result<MessageType, ServerError> {
-    println!("Entering server::read_messsage()");
-
-    // get length of message
-    let mut len_bytes = [0u8; 4];
-    stream.read_exact(&mut len_bytes)?;
-    let len = u32::from_be_bytes(len_bytes) as usize;
-
-    // fetch message from buffer
-    let mut buffer = vec![0u8; len];
-    stream.read_exact(&mut buffer)?;
-
-    // deseralize message
-    Ok(common::deseralize_msg(&buffer))
-}
 #[derive(Debug)]
 pub enum ServerError {
     Io(io::Error),

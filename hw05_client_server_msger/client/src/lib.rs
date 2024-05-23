@@ -4,11 +4,11 @@ use common::{send_message, MessageType};
 
 // Stub client code to just send something to the server for testing
 pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
-    println!("In client::main()");
+    println!("Entering client::run_client()");
 
     let mut stream = TcpStream::connect(&server_address)?;
 
-    println!("Entering client::main() loop on inut");
+    println!("run_client() beginning loop on stdin");
     // Read input from stdin
     loop {
         client_usage();
@@ -19,7 +19,6 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
         let trimmed_input = input.trim();
         let parts: Vec<&str> = trimmed_input.splitn(2, ' ').collect();
         let command = Command::from_str(parts[0])?;
-        dbg!("{:?}", &command);
 
         // Prepare user message
         let message: MessageType = match command {
@@ -32,25 +31,29 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
 
         // Send the message
         send_message(&mut stream, message)?;
-    }
-    println!("Exiting client::main() loop on input");
-    println!("Leaving client::main()");
 
+        // Capture and display the server's response
+        let msg = common::receive_message(&mut stream)?;
+        let addr = stream.peer_addr()?;
+        println!("Received response from server {}: {:?}", addr, msg);
+    }
+    println!("run_client() ended loop on stdin");
+
+    println!("Exiting client::main()");
     Ok(())
 }
 
 fn client_usage() {
     println!(
-        "------------------------------ \n\
-    Usage: client <server ip> <server port>\n\
-    ------------------------------ \n\
-    Message broadcast options: \n\
-    \t- <message> \n\
-    \t- .file <path> \n\
-    \t- .image <path> \n\
-    \t- .help \n\
-    \t- .quit \n\
-    ------------------------------"
+        "
+        ------------------------------ \n\
+        Message broadcast options: \n\
+        \t- <message> \n\
+        \t- .file <path> \n\
+        \t- .image <path> \n\
+        \t- .help \n\
+        \t- .quit \n\
+        ------------------------------"
     );
 }
 
