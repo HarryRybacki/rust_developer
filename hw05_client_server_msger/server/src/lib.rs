@@ -52,6 +52,8 @@ fn handle_client(
 
     // Attempt to store the client in the clients HashMap
     let addr = stream.peer_addr()?;
+
+    println!("\tattempting to lock clients to insert new client");
     // TODO fix the unwrap
     let mut clients_guard = clients.lock().unwrap();
     clients_guard.insert(addr, stream.try_clone()?);
@@ -65,20 +67,21 @@ fn handle_client(
             }
             Err(e) => {
                 println!("returned from common::receive_message() [IN ERROR MATCH]");
-
-                /* TODO: Figure out how and where to gracefully drop clients from the server's tracker
-                let mut clients_guard = clients.lock().unwrap();
-                clients_guard.remove(&addr);
-                println!("Server dropped client: {}", &addr);
-                */
+                // TODO: Drop client from the servers map?
                 eprintln!(
                     "Server error encountered reading message from stream: {:?}",
                     e
                 );
-
                 break;
             }
         };
+
+        println!(
+            "Server rx'd message from client {}: {:?}\n\tPreparing broadcast...",
+            addr, msg
+        );
+        // TODO: Finish broadcast_message
+        //broadcast_message(msg, &clients, addr)?;
 
         println!("Server rx'd message from client {}: {:?}", addr, msg);
         println!("Server preparing confirmation of receipt");
@@ -91,6 +94,20 @@ fn handle_client(
         }
     }
 
+    Ok(())
+}
+
+fn broadcast_message(
+    message: MessageType,
+    clients: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
+    sender_addr: SocketAddr,
+) -> Result<(), ServerError> {
+    println!("Entering server::broadcast_message()");
+
+    // try send a the message to every client in the server is tracking
+    todo!();
+
+    println!("Exiting server::broadcast_message()");
     Ok(())
 }
 
