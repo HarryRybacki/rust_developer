@@ -55,20 +55,27 @@ fn handle_client(
     // TODO fix the unwrap
     let mut clients_guard = clients.lock().unwrap();
     clients_guard.insert(addr, stream.try_clone()?);
+    println!("Server added client connection: {}", &addr);
 
     loop {
         let msg = match common::receive_message(&mut stream) {
-            Ok(msg) => msg,
+            Ok(msg) => {
+                println!("returned from common::receive_message() [IN OK MATCH]");
+                msg
+            }
             Err(e) => {
+                println!("returned from common::receive_message() [IN ERROR MATCH]");
+
+                /* TODO: Figure out how and where to gracefully drop clients from the server's tracker
+                let mut clients_guard = clients.lock().unwrap();
+                clients_guard.remove(&addr);
+                println!("Server dropped client: {}", &addr);
+                */
                 eprintln!(
                     "Server error encountered reading message from stream: {:?}",
                     e
                 );
-                // TODO: How do I gracefully catch errors where the client closes the connection?
-                let mut clients_guard = clients.lock().unwrap();
-                println!("Server is dropping client 'IN LOOP' at: {}", &addr);
-                clients_guard.remove(&addr);
-                eprintln!("TEST");
+
                 break;
             }
         };
@@ -84,13 +91,6 @@ fn handle_client(
         }
     }
 
-    // About to close connection, drop the client from the Servers tracker
-    {
-        // TODO: Figure out why you never seem to get here. Errors fail sooner up
-        let mut clients_guard = clients.lock().unwrap();
-        println!("Server is dropping client 'OUT OF LOOP' at: {}", &addr);
-        clients_guard.remove(&addr);
-    }
     Ok(())
 }
 
