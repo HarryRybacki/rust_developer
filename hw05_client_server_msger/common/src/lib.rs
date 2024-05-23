@@ -8,6 +8,18 @@ pub enum MessageType {
     File(String, Vec<u8>),
 }
 
+impl Clone for MessageType {
+    fn clone(&self) -> MessageType {
+        match self {
+            MessageType::Text(text) => MessageType::Text(text.clone()),
+            MessageType::Image(image) => MessageType::Image(image.clone()),
+            MessageType::File(filename, content) => {
+                MessageType::File(filename.clone(), content.clone())
+            }
+        }
+    }
+}
+
 pub fn serialize_msg(message: MessageType) -> String {
     // Serde Serialize trait on the MessageType makes this seamless
     serde_json::to_string(&message).unwrap()
