@@ -24,16 +24,16 @@ Diving deeper into Rust's capabilities, this assignment will have you explore th
 
 ### 4. Client Creation:
 
-  [] Clients should connect to the server to send messages.
-  [] They too should accept port and hostname parameters, defaulting to localhost:11111 if not given.
+  [X] Clients should connect to the server to send messages.
+  [X] They too should accept port and hostname parameters, defaulting to localhost:11111 if not given.
 
 ### 5. Message Types:
 
   [] Clients should read input from stdin and recognize three distinct message types:
     [] .file <path>: Sends a file to the server.
-    [] image <path>: Sends an image (assumed or required to be .png).
-    [] Any other text: Considered a standard text message.
-  [] The .quit command should terminate the client.
+    [] .image <path>: Sends an image (assumed or required to be .png).
+    [X] Any other text: Considered a standard text message.
+  [X] The .quit command should terminate the client.
 
 ### 6. Client-side File Handling:
 
