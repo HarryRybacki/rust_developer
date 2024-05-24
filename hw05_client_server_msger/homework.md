@@ -40,7 +40,7 @@ Diving deeper into Rust's capabilities, this assignment will have you explore th
   [] When the client receives images, save them in the images/ directory, naming them <timestamp>.png.
   [] Other received files should be stored in the files/ directory.
   [] Display a notification like Receiving image... or Receiving <filename> for incoming files.
-  [] For incoming text messages, display them directly in stdout.
+  [X] For incoming text messages, display them directly in stdout.
 
 ### 7. Bonus Challenge - Image Conversion:
 

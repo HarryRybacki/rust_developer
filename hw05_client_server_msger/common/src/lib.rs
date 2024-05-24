@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{error::Error, io::Read, io::Write, net::TcpStream};
+use std::{error::Error, io, io::Read, io::Write, net::TcpStream};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum MessageType {
@@ -49,11 +49,13 @@ pub fn send_message(stream: &mut TcpStream, message: MessageType) -> Result<(), 
 }
 
 pub fn receive_message(stream: &mut TcpStream) -> Result<MessageType, Box<dyn Error>> {
-    println!("Entering common::recieve_messsage()");
+    //println!("Entering common::recieve_messsage()");
 
     // get length of message
     let mut len_bytes = [0u8; 4];
 
+    // Set read timeout to avoid blocking indefinitely
+    stream.set_read_timeout(Some(std::time::Duration::from_secs(1)))?;
     // Attempt to read from the stream, raise Error if needed
     // TODO: Is there a better way to no there is no message in the Stream?
     match stream.read_exact(&mut len_bytes) {
@@ -67,6 +69,13 @@ pub fn receive_message(stream: &mut TcpStream) -> Result<MessageType, Box<dyn Er
             println!("Exiting common::receieve_message() [IN OKAY MATCH]");
             // Deseralize and return message from buffer
             Ok(deseralize_msg(&buffer))
+        }
+        Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+            // If no data is available, return an error indicating the would block condition
+            Err(Box::new(io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "No data available",
+            )))
         }
         Err(e) => {
             println!("Exiting common::receieve_message() [IN ERROR MATCH]");

@@ -35,13 +35,10 @@ pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
         let inner_clients = Arc::clone(&clients);
 
         // Create new thread to manage handle_client
-        let handle = thread::spawn(move || match handle_client(stream, &inner_clients) {
+        thread::spawn(move || match handle_client(stream, &inner_clients) {
             Ok(()) => println!("client handled succesfully within thread"),
             Err(e) => eprintln!("encountered server error within thread: {}", e),
         });
-
-        // Ensure thread closes so we are safe to lock and drop the client
-        let _ = handle.join();
 
         // Stream is about to close, attempt to drop the client now
         // TODO: Is this the right location? Is this the right way to handle?
@@ -71,13 +68,18 @@ fn handle_client(
                 println!("returned from common::receive_message() [IN OK MATCH]");
                 msg
             }
-            Err(e) => {
-                println!("returned from common::receive_message() [IN ERROR MATCH]");
-                // TODO: Drop client from the servers map?
-                eprintln!(
-                    "Server error encountered reading message from stream: {:?}",
-                    e
-                );
+            Err(ref e) => {
+                // black magic to let server loop
+                if let Some(io_err) = e.downcast_ref::<io::Error>() {
+                    // Note: The receive_message() will return WouldBlock periodically
+                    //       to make sure the stream hasn't been closed. We want the
+                    //       server to continue listening in this case, but break if not
+                    if io_err.kind() == io::ErrorKind::WouldBlock {
+                        //println!("No data available, continuing...");
+                        continue;
+                    }
+                }
+                eprintln!("Error in client_listener: {:?} [IN UKNOWN ERROR MATCH", e);
                 break;
             }
         };
