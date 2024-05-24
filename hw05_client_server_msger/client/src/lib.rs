@@ -6,7 +6,7 @@ use common::{send_message, MessageType};
 pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
     println!("Entering client::run_client()");
 
-    let mut stream = TcpStream::connect(&server_address)?;
+    let mut stream = TcpStream::connect(server_address)?;
 
     println!("run_client() beginning loop on stdin");
     // Read input from stdin

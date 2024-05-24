@@ -38,17 +38,17 @@ pub fn send_message(stream: &mut TcpStream, message: MessageType) -> Result<(), 
     // Send length of serialized message (as 4-byte value)
     let len = serialized_msg.len() as u32;
     // QUESTION: why <u32>.to_be_bytes() -> write, not write_all?
-    stream.write(&len.to_be_bytes())?;
+    stream.write_all(&len.to_be_bytes())?;
 
     // Send the serialized message
     // QUESTION: why <String>.as_bytes() -> write_all, not write?
-    stream.write_all(&serialized_msg.as_bytes())?;
+    stream.write_all(serialized_msg.as_bytes())?;
 
     println!("Exiting send_message()\n sent: {}", &serialized_msg);
     Ok(())
 }
 
-pub fn receive_message(mut stream: &mut TcpStream) -> Result<MessageType, Box<dyn Error>> {
+pub fn receive_message(stream: &mut TcpStream) -> Result<MessageType, Box<dyn Error>> {
     println!("Entering common::recieve_messsage()");
 
     // get length of message
@@ -76,8 +76,8 @@ pub fn receive_message(mut stream: &mut TcpStream) -> Result<MessageType, Box<dy
 }
 
 pub fn get_hostname(args: Vec<String>) -> String {
-    let mut server_hostname = String::new();
-    let mut server_port = String::new();
+    let server_hostname: String;
+    let server_port: String;
 
     match args.len() {
         3 => {

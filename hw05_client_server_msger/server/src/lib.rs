@@ -1,9 +1,8 @@
 use std::{
     collections::HashMap,
-    fmt,
-    io::{self, Read},
+    fmt, io,
     net::{SocketAddr, TcpListener, TcpStream},
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex},
     thread,
 };
 
@@ -31,7 +30,7 @@ pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
         println!("Server is opening a new stream");
 
         // Unwrap stream, note peer address, and clone Clients for the thread
-        let mut stream = stream?;
+        let stream = stream?;
         let peer_addr = stream.peer_addr()?;
         let inner_clients = Arc::clone(&clients);
 
@@ -60,7 +59,7 @@ fn handle_client(
     println!("Entering server::handle_client()");
 
     // Clone clients HashMap and add the stream
-    let inner_clients = Arc::clone(&clients);
+    let inner_clients = Arc::clone(clients);
     println!("\tA new clone of clients has been made.");
     let client_addr = stream.peer_addr()?;
 
@@ -89,7 +88,7 @@ fn handle_client(
         );
 
         // Broadcast message out to everyone but the original sender
-        broadcast_message(msg, Arc::clone(&clients), client_addr)?;
+        broadcast_message(msg, Arc::clone(clients), client_addr)?;
     }
 
     Ok(())
@@ -113,7 +112,7 @@ fn drop_client(client_map: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>, client: 
     println!("\tattempting to lock clients to drop old client");
 
     let mut clients_guard = client_map.lock().unwrap();
-    clients_guard.remove(&client);
+    clients_guard.remove(client);
     println!("\tServer dropped client: {}", &client);
     dbg!("{:?}", &clients_guard);
 }
@@ -124,7 +123,8 @@ fn broadcast_message(
     sender_addr: SocketAddr,
 ) -> Result<(), ServerError> {
     println!("Entering server::broadcast_message()");
-    let mut clients_guard = clients.lock().unwrap();
+    println!("\tattempting to lock clients to broadcast to clients");
+    let clients_guard = clients.lock().unwrap();
 
     for (addr, client_stream) in clients_guard.iter() {
         if *addr != sender_addr {
