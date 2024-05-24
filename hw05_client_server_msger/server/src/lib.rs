@@ -41,13 +41,12 @@ pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
             Err(e) => eprintln!("encountered server error within thread: {}", e),
         });
 
-        // Stream is about to close, attempt to drop the client now
         // Ensure thread closes so we are safe to lock and drop the client
         let _ = handle.join();
+
+        // Stream is about to close, attempt to drop the client now
         // TODO: Is this the right location? Is this the right way to handle?
-        let mut clients_guard = clients.lock().unwrap();
-        clients_guard.remove(&peer_addr);
-        println!("Server dropped client: {}", &peer_addr);
+        drop_client(&clients, &peer_addr);
     }
 
     println!("Exiting server::listen_and_accept()");
@@ -63,16 +62,9 @@ fn handle_client(
     // Clone clients HashMap and add the stream
     let inner_clients = Arc::clone(&clients);
     println!("\tA new clone of clients has been made.");
-    let addr = stream.peer_addr()?;
+    let client_addr = stream.peer_addr()?;
 
-    println!("\tattempting to lock clients to insert new client");
-    // TODO: move to add_client function so we don't need to do this weird scoping hack
-    {
-        let mut clients_guard = inner_clients.lock().unwrap();
-        clients_guard.insert(addr, stream.try_clone()?);
-        println!("Server added client connection: {}", &addr);
-        dbg!("{:?}", &clients_guard);
-    }
+    add_client(&inner_clients, &client_addr, stream.try_clone().unwrap());
 
     loop {
         let msg = match common::receive_message(&mut stream) {
@@ -93,19 +85,37 @@ fn handle_client(
 
         println!(
             "Server rx'd message from client {}: {:?}\n\tPreparing broadcast...",
-            addr, msg
+            &client_addr, msg
         );
 
         // Broadcast message out to everyone but the original sender
-        let sender_addr = stream.peer_addr()?;
-        broadcast_message(msg, Arc::clone(&clients), sender_addr)?;
+        broadcast_message(msg, Arc::clone(&clients), client_addr)?;
     }
 
     Ok(())
 }
 
-fn drop_client() {
-    todo!();
+fn add_client(
+    client_map: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
+    client: &SocketAddr,
+    stream: TcpStream,
+) {
+    println!("\tattempting to lock clients to insert new client");
+
+    let mut clients_guard = client_map.lock().unwrap();
+    // QUESTION: Is it smells bad to deref the SocketAddr like this?
+    clients_guard.insert(*client, stream.try_clone().unwrap());
+    println!("\tServer added client connection: {}", &client);
+    dbg!("{:?}", &clients_guard);
+}
+
+fn drop_client(client_map: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>, client: &SocketAddr) {
+    println!("\tattempting to lock clients to drop old client");
+
+    let mut clients_guard = client_map.lock().unwrap();
+    clients_guard.remove(&client);
+    println!("\tServer dropped client: {}", &client);
+    dbg!("{:?}", &clients_guard);
 }
 
 fn broadcast_message(
