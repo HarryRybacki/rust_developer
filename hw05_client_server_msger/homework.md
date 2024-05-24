@@ -56,7 +56,8 @@ Note: The server can be called without specifiying an IP/Port. In that case, a d
 
 ### Questions:
 
-1. 
+1. Q: How and where should the server be dropping it's client from the HashMap? I attempted to do this when my call to `handle_connection` fails or finishes but my threads kept getting stuck when doign so...
+2. Q: When working with threads, when does it make sense to explicitly call join() on a handle vs just calling thread::spawn(...) and letting it fly?
 
 ### Class Notes:
 

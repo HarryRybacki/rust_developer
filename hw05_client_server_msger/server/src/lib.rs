@@ -23,21 +23,33 @@ pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
     // Establish TcpListener to capture incoming streams
     let listener = TcpListener::bind(address)?;
 
+    // Create a threadsafe HashMap to track clients connected to the server
     let clients = Arc::new(Mutex::new(HashMap::<SocketAddr, TcpStream>::new()));
 
-    // Monitor stream and handle incoming connections
+    // Iterate over incoming streams and handle connections
     for stream in listener.incoming() {
         println!("Server is opening a new stream");
 
+        // Unwrap stream, note peer address, and clone Clients for the thread
         let mut stream = stream?;
-        let clients = Arc::clone(&clients);
+        let peer_addr = stream.peer_addr()?;
+        let inner_clients = Arc::clone(&clients);
 
-        thread::spawn(move || match handle_client(stream, clients) {
-            Ok(()) => println!("client handled succesfully within thread"),
-            Err(e) => {
-                eprintln!("encountered server error within thread: {}", e)
+        // Create new thread to manage handle_client
+        let handle = thread::spawn(move || {
+            match handle_client(stream, &inner_clients) {
+                Ok(()) => println!("client handled succesfully within thread"),
+                Err(e) => eprintln!("encountered server error within thread: {}", e)
             }
         });
+
+        // Stream is about to close, attempt to drop the client now
+        // Ensure thread closes so we are safe to lock and drop the client
+        let _ = handle.join();
+        // TODO: Is this the right location? Is this the right way to handle?
+        let mut clients_guard = clients.lock().unwrap();
+        clients_guard.remove(&peer_addr);
+        println!("Server dropped client: {}", &peer_addr);
     }
 
     println!("Exiting server::listen_and_accept()");
@@ -46,16 +58,20 @@ pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
 
 fn handle_client(
     mut stream: TcpStream,
-    clients: Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
+    clients: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
 ) -> Result<(), ServerError> {
     println!("Entering server::handle_client()");
 
-    // Attempt to store the client in the clients HashMap
+    // Clone clients HashMap and add the stream
+    let inner_clients = Arc::clone(&clients);
+    println!("\tA new clone of clients has been made.");
+    dbg!("{:?}", &clients);
+
     let addr = stream.peer_addr()?;
 
     println!("\tattempting to lock clients to insert new client");
     // TODO fix the unwrap
-    let mut clients_guard = clients.lock().unwrap();
+    let mut clients_guard = inner_clients.lock().unwrap();
     clients_guard.insert(addr, stream.try_clone()?);
     println!("Server added client connection: {}", &addr);
 
