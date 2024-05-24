@@ -88,12 +88,12 @@ fn handle_client(
                 break;
             }
         };
-
+/*
         println!(
             "Server rx'd message from client {}: {:?}\n\tPreparing broadcast...",
             &client_addr, msg
         );
-
+ */
         // Broadcast message out to everyone but the original sender
         broadcast_message(msg, Arc::clone(clients), client_addr)?;
     }

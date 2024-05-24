@@ -1,7 +1,11 @@
+use chrono::Local;
+use common::{send_message, MessageType};
 use std::{
     error::Error,
-    io,
+    fs,
+    io::{self, Write},
     net::TcpStream,
+    path,
     str::FromStr,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -10,8 +14,6 @@ use std::{
     thread,
     time::Duration,
 };
-
-use common::{send_message, MessageType};
 
 // Stub client code to just send something to the server for testing
 pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
@@ -40,7 +42,7 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
         //println!("Client listener thread is stopping...");
     });
 
-    // Display client usage 
+    // Display client usage
     client_usage();
     // Read input from stdin
     //println!("run_client() beginning loop on stdin");
@@ -58,10 +60,18 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
             Command::Quit => break,
             Command::Help => {
                 client_usage();
-                continue
+                continue;
             }
-            Command::File => todo!(),
-            Command::Image => todo!(),
+            Command::File => {
+                todo!()
+            }
+            Command::Image => match fs::read(parts[1]) {
+                Ok(data) => MessageType::Image(data),
+                Err(e) => {
+                    eprintln!("Error reading image file: {}", e);
+                    return Err(Box::new(e));
+                }
+            },
             Command::Text => MessageType::Text(parts.join(" ")),
         };
 
@@ -85,13 +95,13 @@ fn client_listener(mut stream: TcpStream, should_listen: Arc<AtomicBool>) -> Res
             .set_read_timeout(Some(Duration::from_secs(1)))
             .unwrap();
 
-        match common::receive_message(&mut stream) {
+        let _ = match common::receive_message(&mut stream) {
             Ok(msg) => {
                 //println!("Client received message from server");
                 match msg {
                     MessageType::File(filename, file) => todo!(),
-                    MessageType::Image(image) => todo!(),
-                    MessageType::Text(message) => println!("Client received: {}", message),
+                    MessageType::Image(image) => save_image(image),
+                    MessageType::Text(message) => save_text(message),
                 }
             }
             Err(ref e) => {
@@ -112,6 +122,36 @@ fn client_listener(mut stream: TcpStream, should_listen: Arc<AtomicBool>) -> Res
     }
 
     Ok(())
+}
+
+fn save_text(message: String) -> Result<(), Box<dyn Error>> {
+    println!("[msg received]: {}", message);
+    Ok(())
+}
+fn save_image(image: Vec<u8>) -> Result<(), Box<dyn Error>> {
+    // Saves a byte array as an image locally
+    // Assumes filetype is `.png` and storing in `./images/` dir
+    // Returns Result of Ok or Error
+
+    let file_name = generate_file_name();
+
+    let mut file = fs::File::create(&file_name)?;
+    file.write_all(&image)?;
+
+    println!("[image received] saved to: {}", file_name);
+    Ok(())
+}
+
+fn generate_file_name() -> String {
+    // Creates String representing a file's name
+    // Assumes filetype is `.png` and storing in `./images/` dir
+    // Returns String or Error
+
+    let path = path::Path::new("./images");
+    fs::create_dir_all(path).unwrap();
+    let now = Local::now();
+
+    format!("./images/{}.png", now.format("%Y%m%d%H%M%S"))
 }
 
 fn client_usage() {
