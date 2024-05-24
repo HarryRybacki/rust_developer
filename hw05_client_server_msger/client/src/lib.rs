@@ -40,9 +40,10 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
         //println!("Client listener thread is stopping...");
     });
 
-    //println!("run_client() beginning loop on stdin");
+    // Display client usage 
     client_usage();
     // Read input from stdin
+    //println!("run_client() beginning loop on stdin");
     loop {
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
@@ -69,10 +70,10 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
     }
     //println!("run_client() ended loop on stdin");
 
-    // Close listener thread to finish
+    // Tell the listener thread to halt
     should_listen.store(false, Ordering::SeqCst);
 
-    println!("Exiting client::main()");
+    //println!("Exiting client::main()");
     Ok(())
 }
 

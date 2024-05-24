@@ -31,7 +31,7 @@ pub fn deseralize_msg(input: &[u8]) -> MessageType {
 }
 
 pub fn send_message(stream: &mut TcpStream, message: MessageType) -> Result<(), Box<dyn Error>> {
-    println!("Entering common::send_message()");
+    //println!("Entering common::send_message()");
     // Serialize the message for tx
     let serialized_msg = serialize_msg(message);
 
@@ -44,7 +44,7 @@ pub fn send_message(stream: &mut TcpStream, message: MessageType) -> Result<(), 
     // QUESTION: why <String>.as_bytes() -> write_all, not write?
     stream.write_all(serialized_msg.as_bytes())?;
 
-    println!("Exiting send_message()\n sent: {}", &serialized_msg);
+    //println!("Exiting send_message()\n sent: {}", &serialized_msg);
     Ok(())
 }
 
@@ -66,7 +66,7 @@ pub fn receive_message(stream: &mut TcpStream) -> Result<MessageType, Box<dyn Er
             let mut buffer = vec![0u8; len];
             stream.read_exact(&mut buffer)?;
 
-            println!("Exiting common::receieve_message() [IN OKAY MATCH]");
+            //println!("Exiting common::receieve_message() [IN OKAY MATCH]");
             // Deseralize and return message from buffer
             Ok(deseralize_msg(&buffer))
         }
@@ -77,8 +77,15 @@ pub fn receive_message(stream: &mut TcpStream) -> Result<MessageType, Box<dyn Er
                 "No data available",
             )))
         }
+        Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => {
+            // A client has disconnected
+            Err(Box::new(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "Client disconnected",
+            )))
+        }
         Err(e) => {
-            println!("Exiting common::receieve_message() [IN ERROR MATCH]");
+            println!("Exiting common::receieve_message() [IN UNKOWN ERROR MATCH]");
             Err(From::from(e))
         }
     }

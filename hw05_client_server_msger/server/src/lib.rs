@@ -59,13 +59,12 @@ fn handle_client(
     let inner_clients = Arc::clone(clients);
     println!("\tA new clone of clients has been made.");
     let client_addr = stream.peer_addr()?;
-
     add_client(&inner_clients, &client_addr, stream.try_clone().unwrap());
 
     loop {
         let msg = match common::receive_message(&mut stream) {
             Ok(msg) => {
-                println!("returned from common::receive_message() [IN OK MATCH]");
+                //println!("returned from common::receive_message() [IN OK MATCH]");
                 msg
             }
             Err(ref e) => {
@@ -77,6 +76,12 @@ fn handle_client(
                     if io_err.kind() == io::ErrorKind::WouldBlock {
                         //println!("No data available, continuing...");
                         continue;
+                    }
+                }
+                if let Some(io_err) = e.downcast_ref::<io::Error>() {
+                    if io_err.kind() == io::ErrorKind::UnexpectedEof {
+                        println!("A client probably disconnected, continuing...");
+                        break;
                     }
                 }
                 eprintln!("Error in client_listener: {:?} [IN UKNOWN ERROR MATCH", e);
@@ -107,7 +112,7 @@ fn add_client(
     // QUESTION: Is it smells bad to deref the SocketAddr like this?
     clients_guard.insert(*client, stream.try_clone().unwrap());
     println!("\tServer added client connection: {}", &client);
-    dbg!("{:?}", &clients_guard);
+    //dbg!("{:?}", &clients_guard);
 }
 
 fn drop_client(client_map: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>, client: &SocketAddr) {
@@ -116,7 +121,7 @@ fn drop_client(client_map: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>, client: 
     let mut clients_guard = client_map.lock().unwrap();
     clients_guard.remove(client);
     println!("\tServer dropped client: {}", &client);
-    dbg!("{:?}", &clients_guard);
+    //dbg!("{:?}", &clients_guard);
 }
 
 fn broadcast_message(
@@ -124,7 +129,7 @@ fn broadcast_message(
     clients: Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
     sender_addr: SocketAddr,
 ) -> Result<(), ServerError> {
-    println!("Entering server::broadcast_message()");
+    //println!("Entering server::broadcast_message()");
     println!("\tattempting to lock clients to broadcast to clients");
     let clients_guard = clients.lock().unwrap();
 
@@ -135,7 +140,7 @@ fn broadcast_message(
         }
     }
 
-    println!("Exiting server::broadcast_message()");
+    //println!("Exiting server::broadcast_message()");
     Ok(())
 }
 
