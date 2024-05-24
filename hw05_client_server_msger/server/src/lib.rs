@@ -3,7 +3,7 @@ use std::{
     fmt,
     io::{self, Read},
     net::{SocketAddr, TcpListener, TcpStream},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard},
     thread,
 };
 
@@ -36,11 +36,9 @@ pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
         let inner_clients = Arc::clone(&clients);
 
         // Create new thread to manage handle_client
-        let handle = thread::spawn(move || {
-            match handle_client(stream, &inner_clients) {
-                Ok(()) => println!("client handled succesfully within thread"),
-                Err(e) => eprintln!("encountered server error within thread: {}", e)
-            }
+        let handle = thread::spawn(move || match handle_client(stream, &inner_clients) {
+            Ok(()) => println!("client handled succesfully within thread"),
+            Err(e) => eprintln!("encountered server error within thread: {}", e),
         });
 
         // Stream is about to close, attempt to drop the client now
@@ -65,15 +63,16 @@ fn handle_client(
     // Clone clients HashMap and add the stream
     let inner_clients = Arc::clone(&clients);
     println!("\tA new clone of clients has been made.");
-    dbg!("{:?}", &clients);
-
     let addr = stream.peer_addr()?;
 
     println!("\tattempting to lock clients to insert new client");
-    // TODO fix the unwrap
-    let mut clients_guard = inner_clients.lock().unwrap();
-    clients_guard.insert(addr, stream.try_clone()?);
-    println!("Server added client connection: {}", &addr);
+    // TODO: move to add_client function so we don't need to do this weird scoping hack
+    {
+        let mut clients_guard = inner_clients.lock().unwrap();
+        clients_guard.insert(addr, stream.try_clone()?);
+        println!("Server added client connection: {}", &addr);
+        dbg!("{:?}", &clients_guard);
+    }
 
     loop {
         let msg = match common::receive_message(&mut stream) {
@@ -96,32 +95,33 @@ fn handle_client(
             "Server rx'd message from client {}: {:?}\n\tPreparing broadcast...",
             addr, msg
         );
-        // TODO: Finish broadcast_message
-        //broadcast_message(msg, &clients, addr)?;
 
-        println!("Server rx'd message from client {}: {:?}", addr, msg);
-        println!("Server preparing confirmation of receipt");
-        let response = format!("Server confirms message receipt from you: '{}'", &addr);
-
-        let response_for_client = MessageType::Text(String::from(response));
-        if let Err(e) = send_message(&mut stream, response_for_client) {
-            println!("Error sending response: {:?}", e);
-            break;
-        }
+        // Broadcast message out to everyone but the original sender
+        let sender_addr = stream.peer_addr()?;
+        broadcast_message(msg, Arc::clone(&clients), sender_addr)?;
     }
 
     Ok(())
 }
 
+fn drop_client() {
+    todo!();
+}
+
 fn broadcast_message(
     message: MessageType,
-    clients: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
+    clients: Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
     sender_addr: SocketAddr,
 ) -> Result<(), ServerError> {
     println!("Entering server::broadcast_message()");
+    let mut clients_guard = clients.lock().unwrap();
 
-    // try send a the message to every client in the server is tracking
-    todo!();
+    for (addr, client_stream) in clients_guard.iter() {
+        if *addr != sender_addr {
+            let mut stream = client_stream.try_clone()?;
+            let _ = send_message(&mut stream, message.clone());
+        }
+    }
 
     println!("Exiting server::broadcast_message()");
     Ok(())

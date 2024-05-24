@@ -32,10 +32,11 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
         // Send the message
         send_message(&mut stream, message)?;
 
+        // TODO: Pick up here, client shouldn't await a response. It should have a thread listening
         // Capture and display the server's response
-        let msg = common::receive_message(&mut stream)?;
-        let addr = stream.peer_addr()?;
-        println!("Received response from server {}: {:?}", addr, msg);
+        //let msg = common::receive_message(&mut stream)?;
+        //let addr = stream.peer_addr()?;
+        //println!("Received response from server {}: {:?}", addr, msg);
     }
     println!("run_client() ended loop on stdin");
 
