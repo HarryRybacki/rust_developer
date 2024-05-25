@@ -29,8 +29,8 @@ Diving deeper into Rust's capabilities, this assignment will have you explore th
 
 ### 5. Message Types:
 
-  [] Clients should read input from stdin and recognize three distinct message types:
-    [] .file <path>: Sends a file to the server.
+  [X] Clients should read input from stdin and recognize three distinct message types:
+    [X] .file <path>: Sends a file to the server.
     [X] .image <path>: Sends an image (assumed or required to be .png).
     [X] Any other text: Considered a standard text message.
   [X] The .quit command should terminate the client.
@@ -39,8 +39,8 @@ Diving deeper into Rust's capabilities, this assignment will have you explore th
 
   [X] When the client receives images, save them in the images/ directory, naming them <timestamp>.png.
   [X] Display a notification like Receiving image... for incoming images.
-  [] Other received files should be stored in the files/ directory.
-  [] Display a notification like Receiving <filename> for incoming files.
+  [X] Other received files should be stored in the files/ directory.
+  [X] Display a notification like Receiving <filename> for incoming files.
   [X] For incoming text messages, display them directly in stdout.
 
 ### 7. Bonus Challenge - Image Conversion:

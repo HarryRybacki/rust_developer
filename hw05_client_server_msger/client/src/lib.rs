@@ -62,9 +62,24 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
                 client_usage();
                 continue;
             }
-            Command::File => {
-                todo!()
-            }
+            Command::File => match fs::read(parts[1]) {
+                Ok(data) => {
+                    // Generate the filename
+                    // TODO clean this up
+                    let file_name = path::Path::new(parts[1])
+                        .file_name()
+                        .unwrap()
+                        .to_str()
+                        .unwrap();
+                    println!("sending file: {}", &file_name);
+                    // Create and return the MessagType
+                    MessageType::File(String::from(file_name), data)
+                }
+                Err(e) => {
+                    eprintln!("Error reading file: {}", e);
+                    return Err(Box::new(e));
+                }
+            },
             Command::Image => match fs::read(parts[1]) {
                 Ok(data) => MessageType::Image(data),
                 Err(e) => {
@@ -99,7 +114,7 @@ fn client_listener(mut stream: TcpStream, should_listen: Arc<AtomicBool>) -> Res
             Ok(msg) => {
                 //println!("Client received message from server");
                 match msg {
-                    MessageType::File(filename, file) => todo!(),
+                    MessageType::File(filename, data) => save_file(filename, data),
                     MessageType::Image(image) => save_image(image),
                     MessageType::Text(message) => save_text(message),
                 }
@@ -139,6 +154,28 @@ fn save_image(image: Vec<u8>) -> Result<(), Box<dyn Error>> {
     file.write_all(&image)?;
 
     println!("[image received] saved to: {}", file_name);
+    Ok(())
+}
+fn save_file(file_name: String, data: Vec<u8>) -> Result<(), Box<dyn Error>> {
+    // Saves a byte array as a file locally
+    // Assumes filename includes extension and storing in `./files/` dir
+    // Returns Result of Ok or Error
+
+    // Attemtp to create the path
+    let path = std::path::Path::new("./files");
+    fs::create_dir_all(path)?;
+
+    // Create the file
+    let file_path = path.join(&file_name);
+    let mut file = fs::File::create(&file_path)?;
+
+    file.write_all(&data)?;
+
+    // TODO: Clean up this expect()
+    let file_path_str = file_path
+        .to_str()
+        .expect("Error encountered after saving file locally...");
+    println!("[file received] saved to: {}", file_path_str);
     Ok(())
 }
 
