@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    error::Error,
     fmt, io,
     net::{SocketAddr, TcpListener, TcpStream},
     sync::{Arc, Mutex},
@@ -36,13 +37,18 @@ pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
 
         // Create new thread to manage handle_client
         thread::spawn(move || match handle_client(stream, &inner_clients) {
-            Ok(()) => println!("client handled succesfully within thread"),
-            Err(e) => eprintln!("encountered server error within thread: {}", e),
+            Ok(()) => {
+                drop_client(&inner_clients, &peer_addr);
+                println!("client handled succesfully within thread")
+            }
+            Err(e) => {
+                drop_client(&inner_clients, &peer_addr);
+                eprintln!("encountered server error within thread: {}", e)
+            }
         });
 
         // Stream is about to close, attempt to drop the client now
-        // TODO: Is this the right location? Is this the right way to handle?
-        drop_client(&clients, &peer_addr);
+        //drop_client(&clients, &peer_addr);
     }
 
     println!("Exiting server::listen_and_accept()");
@@ -59,7 +65,9 @@ fn handle_client(
     let inner_clients = Arc::clone(clients);
     println!("\tA new clone of clients has been made.");
     let client_addr = stream.peer_addr()?;
-    add_client(&inner_clients, &client_addr, stream.try_clone().unwrap());
+
+    // Add new client to the Servers HashMap
+    add_client(&inner_clients, &client_addr, stream.try_clone()?);
 
     loop {
         let msg = match common::receive_message(&mut stream) {
@@ -88,12 +96,7 @@ fn handle_client(
                 break;
             }
         };
-/*
-        println!(
-            "Server rx'd message from client {}: {:?}\n\tPreparing broadcast...",
-            &client_addr, msg
-        );
- */
+
         // Broadcast message out to everyone but the original sender
         broadcast_message(msg, Arc::clone(clients), client_addr)?;
     }
@@ -105,23 +108,45 @@ fn add_client(
     client_map: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
     client: &SocketAddr,
     stream: TcpStream,
-) {
-    println!("\tattempting to lock clients to insert new client");
+) -> Result<(), Box<dyn Error>> {
+    {
+        // Wrap in expression so the guard is returned immediatly after completing its insert
+        println!("\tattempting to lock clients to insert new client");
+        let mut clients_guard = client_map.lock().unwrap();
+        // QUESTION: Is it smells bad to deref the SocketAddr like this?
+        clients_guard.insert(*client, stream.try_clone().unwrap());
+        println!("\tServer added client connection: {}", &client);
+    }
 
-    let mut clients_guard = client_map.lock().unwrap();
-    // QUESTION: Is it smells bad to deref the SocketAddr like this?
-    clients_guard.insert(*client, stream.try_clone().unwrap());
-    println!("\tServer added client connection: {}", &client);
-    //dbg!("{:?}", &clients_guard);
+    // Inform other clients a new user has joined
+    let msg = MessageType::Text(String::from(format!(
+        "<SERVER MSG> A new user has joined the server: {}",
+        client
+    )));
+    broadcast_message(msg, Arc::clone(client_map), client.clone())?;
+
+    Ok(())
 }
 
-fn drop_client(client_map: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>, client: &SocketAddr) {
-    println!("\tattempting to lock clients to drop old client");
+fn drop_client(
+    client_map: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
+    client: &SocketAddr,
+) -> Result<(), Box<dyn Error>> {
+    {
+        println!("\tattempting to lock clients to drop old client");
+        let mut clients_guard = client_map.lock().unwrap();
+        clients_guard.remove(client);
+        println!("\tServer dropped client: {}", &client);
+    }
 
-    let mut clients_guard = client_map.lock().unwrap();
-    clients_guard.remove(client);
-    println!("\tServer dropped client: {}", &client);
-    //dbg!("{:?}", &clients_guard);
+    // Inform other clients a user has left
+    let msg = MessageType::Text(String::from(format!(
+        "<SERVER MSG> User: {}, has left the server",
+        client
+    )));
+    broadcast_message(msg, Arc::clone(client_map), client.clone())?;
+
+    Ok(())
 }
 
 fn broadcast_message(

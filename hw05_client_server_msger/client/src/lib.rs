@@ -15,7 +15,6 @@ use std::{
     time::Duration,
 };
 
-// Stub client code to just send something to the server for testing
 pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
     //println!("Entering client::run_client()");
 
@@ -55,7 +54,7 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
         let parts: Vec<&str> = trimmed_input.splitn(2, ' ').collect();
         let command = Command::from_str(parts[0])?;
 
-        // Prepare user message
+        // Prepare user message to send
         let message: MessageType = match command {
             Command::Quit => break,
             Command::Help => {
@@ -64,15 +63,12 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
             }
             Command::File => match fs::read(parts[1]) {
                 Ok(data) => {
-                    // Generate the filename
-                    // TODO clean this up
                     let file_name = path::Path::new(parts[1])
                         .file_name()
                         .unwrap()
                         .to_str()
                         .unwrap();
-                    println!("sending file: {}", &file_name);
-                    // Create and return the MessagType
+                    println!("[SENDING FILE] {}", &file_name);
                     MessageType::File(String::from(file_name), data)
                 }
                 Err(e) => {
@@ -81,13 +77,20 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
                 }
             },
             Command::Image => match fs::read(parts[1]) {
-                Ok(data) => MessageType::Image(data),
+                Ok(data) => {
+                    println!("[SENDING IMAGE] {}", &parts[1]);
+                    MessageType::Image(data)
+                }
                 Err(e) => {
                     eprintln!("Error reading image file: {}", e);
                     return Err(Box::new(e));
                 }
             },
-            Command::Text => MessageType::Text(parts.join(" ")),
+            Command::Text => {
+                let message = parts.join(" ");
+                println!("[SENT] {}", &message);
+                MessageType::Text(message)
+            }
         };
 
         // Send the message
@@ -102,13 +105,13 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-// TODO: Update return type to Result<(), Error>
-fn client_listener(mut stream: TcpStream, should_listen: Arc<AtomicBool>) -> Result<(), String> {
+fn client_listener(
+    mut stream: TcpStream,
+    should_listen: Arc<AtomicBool>,
+) -> Result<(), Box<dyn Error>> {
     while should_listen.load(Ordering::SeqCst) {
         // Use a non-blocking read with a timeout
-        stream
-            .set_read_timeout(Some(Duration::from_secs(1)))
-            .unwrap();
+        stream.set_read_timeout(Some(Duration::from_secs(1)))?;
 
         let _ = match common::receive_message(&mut stream) {
             Ok(msg) => {
@@ -140,9 +143,10 @@ fn client_listener(mut stream: TcpStream, should_listen: Arc<AtomicBool>) -> Res
 }
 
 fn save_text(message: String) -> Result<(), Box<dyn Error>> {
-    println!("[msg received]: {}", message);
+    println!("[RECEIVED] {}", message);
     Ok(())
 }
+
 fn save_image(image: Vec<u8>) -> Result<(), Box<dyn Error>> {
     // Saves a byte array as an image locally
     // Assumes filetype is `.png` and storing in `./images/` dir
@@ -153,29 +157,30 @@ fn save_image(image: Vec<u8>) -> Result<(), Box<dyn Error>> {
     let mut file = fs::File::create(&file_name)?;
     file.write_all(&image)?;
 
-    println!("[image received] saved to: {}", file_name);
+    println!("[RECEIVED IMAGE] Saving to..: {}", file_name);
     Ok(())
 }
+
 fn save_file(file_name: String, data: Vec<u8>) -> Result<(), Box<dyn Error>> {
     // Saves a byte array as a file locally
     // Assumes filename includes extension and storing in `./files/` dir
     // Returns Result of Ok or Error
 
-    // Attemtp to create the path
+    // Attempt to create the path
     let path = std::path::Path::new("./files");
     fs::create_dir_all(path)?;
 
     // Create the file
     let file_path = path.join(&file_name);
     let mut file = fs::File::create(&file_path)?;
-
     file.write_all(&data)?;
 
-    // TODO: Clean up this expect()
+    // Save the file
     let file_path_str = file_path
         .to_str()
         .expect("Error encountered after saving file locally...");
-    println!("[file received] saved to: {}", file_path_str);
+
+    println!("[RECEIVED FILE] Saving to..: {}", file_path_str);
     Ok(())
 }
 
@@ -184,6 +189,7 @@ fn generate_file_name() -> String {
     // Assumes filetype is `.png` and storing in `./images/` dir
     // Returns String or Error
 
+    // Attempt to create the file path
     let path = path::Path::new("./images");
     fs::create_dir_all(path).unwrap();
     let now = Local::now();
