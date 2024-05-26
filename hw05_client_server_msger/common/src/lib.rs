@@ -54,10 +54,9 @@ pub fn receive_message(stream: &mut TcpStream) -> Result<MessageType, Box<dyn Er
     // get length of message
     let mut len_bytes = [0u8; 4];
 
+    // Attempt to read from the stream, raise Error if needed
     // Set read timeout to avoid blocking indefinitely
     stream.set_read_timeout(Some(std::time::Duration::from_secs(1)))?;
-    // Attempt to read from the stream, raise Error if needed
-    // TODO: Is there a better way to no there is no message in the Stream?
     match stream.read_exact(&mut len_bytes) {
         Ok(_) => {
             let len = u32::from_be_bytes(len_bytes) as usize;
