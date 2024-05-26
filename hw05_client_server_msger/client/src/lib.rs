@@ -15,7 +15,6 @@ use std::{
     time::Duration,
 };
 
-// Stub client code to just send something to the server for testing
 pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
     //println!("Entering client::run_client()");
 
@@ -55,7 +54,7 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
         let parts: Vec<&str> = trimmed_input.splitn(2, ' ').collect();
         let command = Command::from_str(parts[0])?;
 
-        // Prepare user message
+        // Prepare user message to send
         let message: MessageType = match command {
             Command::Quit => break,
             Command::Help => {
@@ -71,8 +70,6 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
                         .unwrap()
                         .to_str()
                         .unwrap();
-                    println!("sending file: {}", &file_name);
-                    // Create and return the MessagType
                     MessageType::File(String::from(file_name), data)
                 }
                 Err(e) => {
@@ -143,6 +140,7 @@ fn save_text(message: String) -> Result<(), Box<dyn Error>> {
     println!("[msg received]: {}", message);
     Ok(())
 }
+
 fn save_image(image: Vec<u8>) -> Result<(), Box<dyn Error>> {
     // Saves a byte array as an image locally
     // Assumes filetype is `.png` and storing in `./images/` dir
@@ -156,6 +154,7 @@ fn save_image(image: Vec<u8>) -> Result<(), Box<dyn Error>> {
     println!("[image received] saved to: {}", file_name);
     Ok(())
 }
+
 fn save_file(file_name: String, data: Vec<u8>) -> Result<(), Box<dyn Error>> {
     // Saves a byte array as a file locally
     // Assumes filename includes extension and storing in `./files/` dir
@@ -168,7 +167,6 @@ fn save_file(file_name: String, data: Vec<u8>) -> Result<(), Box<dyn Error>> {
     // Create the file
     let file_path = path.join(&file_name);
     let mut file = fs::File::create(&file_path)?;
-
     file.write_all(&data)?;
 
     // TODO: Clean up this expect()

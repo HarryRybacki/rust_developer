@@ -7,9 +7,9 @@ fn main() {
     println!("Remote server address: {}", server_address);
 
     match client::run_client(&server_address) {
-        Ok(()) => println!("Client run successful. Exiting..."),
+        Ok(()) => println!("Client run successful. \nExiting..."),
         Err(e) => {
-            eprintln!("Encountered error while running client: {}", e)
+            eprintln!("Client encountered error while running: {}\nExiting...", e)
         }
     }
 }

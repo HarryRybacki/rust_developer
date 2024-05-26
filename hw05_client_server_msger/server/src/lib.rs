@@ -41,7 +41,6 @@ pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
         });
 
         // Stream is about to close, attempt to drop the client now
-        // TODO: Is this the right location? Is this the right way to handle?
         drop_client(&clients, &peer_addr);
     }
 
@@ -88,12 +87,7 @@ fn handle_client(
                 break;
             }
         };
-/*
-        println!(
-            "Server rx'd message from client {}: {:?}\n\tPreparing broadcast...",
-            &client_addr, msg
-        );
- */
+
         // Broadcast message out to everyone but the original sender
         broadcast_message(msg, Arc::clone(clients), client_addr)?;
     }
