@@ -108,7 +108,7 @@ fn add_client(
     client_map: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
     client: &SocketAddr,
     stream: TcpStream,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), ServerError> {
     {
         // Wrap in expression so the guard is returned immediatly after completing its insert
         println!("\tattempting to lock clients to insert new client");
@@ -131,7 +131,7 @@ fn add_client(
 fn drop_client(
     client_map: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
     client: &SocketAddr,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), ServerError> {
     {
         println!("\tattempting to lock clients to drop old client");
         let mut clients_guard = client_map.lock().unwrap();
