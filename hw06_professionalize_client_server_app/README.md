@@ -1,82 +1,48 @@
-# Homework 5
+# [Homework 6](https://robot-dreams-rust.mag.wiki/11-rust-ecosystem/index.html#homework)
+Your next challenge is to professionalize your client-server chat application by organizing it into Cargo crates and incorporating production-ready libraries. This assignment will also give you the opportunity to clean up your project structure and prepare it for real-world applications.
 
-## Description:
+## [Description:](https://robot-dreams-rust.mag.wiki/11-rust-ecosystem/index.html#description)
 
-Diving deeper into Rust's capabilities, this assignment will have you explore the world of networked applications. Your task is to create a client-server messaging system, demonstrating Rust's strengths in handling networking and file operations.
+### 1. Cargo Crates Conversion:
 
-### 1. Removing Text Transformation Functionality:
+- [X] If you have not already, transform both the client and server parts of your chat application into separate Cargo crates.
 
-  [X] Before delving into this assignment, ensure you've removed the text transformation functionality from your previous homework. This task will focus solely on networking.
+- [X] Structure your project directory to clearly separate the two parts of the application.
 
-### 2. Wire Format:
+### 2. Shared Functionality:
 
-  [X] For the format in which data is sent and received over the network, consider using one of the following:
-    * serde_cbor -- we will try this one.
-    * bincode
-    * postcard
-  These crates can help serialize and deserialize data efficiently for network transfer.
+- [X] Identify any shared functionality between the client and server.
+- [X] Consider abstracting this shared code into a third "library" crate that both the client and server can utilize.
 
-### 3. Server Creation:
+### 3. Production-Ready Libraries:
 
-  [X] Design the server to receive messages from multiple clients.
-  [X] Accept port and hostname as parameters. If none are provided, default to localhost:11111.
-  [] Setting the hostname to 0.0.0.0 will allow connections from any IP.
+- [ ] Introduce production-ready libraries for key functionalities, such as:
+  - log (with some backend) or tracing (with tracing-subscriber) for logging.
+  - rayon for data parallelism, if applicable.
+  - itertools for advanced iterator operations, if applicable.
 
-### 4. Client Creation:
+### 4. Crates Exploration:
 
-  [X] Clients should connect to the server to send messages.
-  [X] They too should accept port and hostname parameters, defaulting to localhost:11111 if not given.
+- [ ] Dive into resources such as [crates.io](https://crates.io/), [lib.rs](https://lib.rs/), or [rust-unofficial/awesome-rust](https://github.com/rust-unofficial/awesome-rust) on GitHub to discover crates that could simplify or enhance your chat application.
+- [ ] Look for crates that offer robust, tested solutions to common problems or that can add new functionality to your application, if you want. Keep in mind that we will be rewriting the application to be asynchronous soon
 
-### 5. Message Types:
+### 5. Documentation and Comments:
 
-  [X] Clients should read input from stdin and recognize three distinct message types:
-    [X] .file <path>: Sends a file to the server.
-    [X] .image <path>: Sends an image (assumed or required to be .png).
-    [X] Any other text: Considered a standard text message.
-  [X] The .quit command should terminate the client.
+- [ ] Update your README.md to document how to use the new crates and any significant changes you've made to the application structure.
+- [ ] Add comments throughout your code to explain your reasoning and provide guidance on how the code works.
 
-### 6. Client-side File Handling:
+### 6. Refactoring:
 
-  [X] When the client receives images, save them in the images/ directory, naming them <timestamp>.png.
-  [X] Display a notification like Receiving image... for incoming images.
-  [X] Other received files should be stored in the files/ directory.
-  [X] Display a notification like Receiving <filename> for incoming files.
-  [X] For incoming text messages, display them directly in stdout.
-
-### 7. Bonus Challenge - Image Conversion:
-
-  [] For an extra point, design the client to automatically convert any received image to .png format. This could necessitate some exploration and potentially the addition of other crates.
+- [ ] Refactor your existing codebase to make use of the new crates and shared library, ensuring that everything is cleanly integrated and operates smoothly.
 
 ### Usage:
 
-1. Launch the server from terminal 1: `cargo run --bin server -- <server ip> <server port>`
-2. Call client to pass message to server from terminal 2: `cargo run --bin client`
-3. Confirm message received in stdout of terminal 1.
+1. Launch the Server from terminal 1: `cargo run -p server <server ip> <server port>`
+2. Launch a Client to message through the Server from terminal 2: `cargo run -p client <server ip> <server port>`
 
 Note: The server can be called without specifiying an IP/Port. In that case, a default address of localhost:11111 will be used.
+Note: Multiple Clients must be active with the Server in order to transmit messages, images, or files.
 
 ### Questions:
 
-1. Q: How and where should the server be dropping it's client from the HashMap? I attempted to do this when my call to `handle_connection` fails or finishes but my threads kept getting stuck when doign so...
-2. Q: When working with threads, when does it make sense to explicitly call join() on a handle vs just calling thread::spawn(...) and letting it fly?
-
 ### Class Notes:
-
-
-structure 
-
-src/
-  bin/ 
-    client.rs
-  main.rs
-  lib.rs
-
-Running client
-
-  cargo run -- hw05
-
-Running server
-
-  cargo run --bin client
-
-Remember to do the 'prefix length' for sending/rxing
