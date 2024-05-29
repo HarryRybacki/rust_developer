@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    error::Error,
     fmt, io,
     net::{SocketAddr, TcpListener, TcpStream},
     sync::{Arc, Mutex},
@@ -18,7 +17,7 @@ use common::{send_message, MessageType};
 ///
 /// TODO: How do we know when to halt the server?
 pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
-    println!("Entering server::listen_and_accept()");
+    log::trace!("Entering server::listen_and_accept()");
 
     // Establish TcpListener to capture incoming streams
     let listener = TcpListener::bind(address)?;
@@ -28,7 +27,7 @@ pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
 
     // Iterate over incoming streams and handle connections
     for stream in listener.incoming() {
-        println!("Server is opening a new stream");
+        log::info!("Server is opening a new stream");
 
         // Unwrap stream, note peer address, and clone Clients for the thread
         let stream = stream?;
@@ -38,20 +37,17 @@ pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
         // Create new thread to manage handle_client
         thread::spawn(move || match handle_client(stream, &inner_clients) {
             Ok(()) => {
-                drop_client(&inner_clients, &peer_addr);
-                println!("client handled succesfully within thread")
+                let _ = drop_client(&inner_clients, &peer_addr);
+                log::info!("Client handled succesfully within thread. Exiting...")
             }
             Err(e) => {
-                drop_client(&inner_clients, &peer_addr);
-                eprintln!("encountered server error within thread: {}", e)
+                let _ = drop_client(&inner_clients, &peer_addr);
+                log::error!("Encountered server error within thread: {}", e)
             }
         });
-
-        // Stream is about to close, attempt to drop the client now
-        //drop_client(&clients, &peer_addr);
     }
 
-    println!("Exiting server::listen_and_accept()");
+    log::trace!("Exiting server::listen_and_accept()");
     Ok(())
 }
 
@@ -59,20 +55,20 @@ fn handle_client(
     mut stream: TcpStream,
     clients: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
 ) -> Result<(), ServerError> {
-    println!("Entering server::handle_client()");
+    log::trace!("Entering server::handle_client()");
 
     // Clone clients HashMap and add the stream
     let inner_clients = Arc::clone(clients);
-    println!("\tA new clone of clients has been made.");
+    log::debug!("A new clone of clients has been made.");
     let client_addr = stream.peer_addr()?;
 
     // Add new client to the Servers HashMap
-    add_client(&inner_clients, &client_addr, stream.try_clone()?);
+    let _ = add_client(&inner_clients, &client_addr, stream.try_clone()?);
 
     loop {
         let msg = match common::receive_message(&mut stream) {
             Ok(msg) => {
-                //println!("returned from common::receive_message() [IN OK MATCH]");
+                log::debug!("returned from common::receive_message() [IN OK MATCH]");
                 msg
             }
             Err(ref e) => {
@@ -82,17 +78,16 @@ fn handle_client(
                     //       to make sure the stream hasn't been closed. We want the
                     //       server to continue listening in this case, but break if not
                     if io_err.kind() == io::ErrorKind::WouldBlock {
-                        //println!("No data available, continuing...");
                         continue;
                     }
                 }
                 if let Some(io_err) = e.downcast_ref::<io::Error>() {
                     if io_err.kind() == io::ErrorKind::UnexpectedEof {
-                        println!("A client probably disconnected, continuing...");
+                        log::info!("A client probably disconnected, continuing...");
                         break;
                     }
                 }
-                eprintln!("Error in client_listener: {:?} [IN UKNOWN ERROR MATCH", e);
+                log::error!("Error in client_listener: {:?} [IN UKNOWN ERROR MATCH", e);
                 break;
             }
         };
@@ -111,19 +106,19 @@ fn add_client(
 ) -> Result<(), ServerError> {
     {
         // Wrap in expression so the guard is returned immediatly after completing its insert
-        println!("\tattempting to lock clients to insert new client");
+        log::debug!("Attempting to lock clients to insert new client");
         let mut clients_guard = client_map.lock().unwrap();
         // QUESTION: Is it smells bad to deref the SocketAddr like this?
         clients_guard.insert(*client, stream.try_clone().unwrap());
-        println!("\tServer added client connection: {}", &client);
+        log::info!("Server added client connection: {}", &client);
     }
 
     // Inform other clients a new user has joined
-    let msg = MessageType::Text(String::from(format!(
+    let msg = MessageType::Text(format!(
         "<SERVER MSG> A new user has joined the server: {}",
         client
-    )));
-    broadcast_message(msg, Arc::clone(client_map), client.clone())?;
+    ));
+    broadcast_message(msg, Arc::clone(client_map), *client)?;
 
     Ok(())
 }
@@ -133,18 +128,18 @@ fn drop_client(
     client: &SocketAddr,
 ) -> Result<(), ServerError> {
     {
-        println!("\tattempting to lock clients to drop old client");
+        log::debug!("Attempting to lock clients to drop old client");
         let mut clients_guard = client_map.lock().unwrap();
         clients_guard.remove(client);
-        println!("\tServer dropped client: {}", &client);
+        log::info!("Server dropped client: {}", &client);
     }
 
     // Inform other clients a user has left
-    let msg = MessageType::Text(String::from(format!(
+    let msg = MessageType::Text(format!(
         "<SERVER MSG> User: {}, has left the server",
         client
-    )));
-    broadcast_message(msg, Arc::clone(client_map), client.clone())?;
+    ));
+    broadcast_message(msg, Arc::clone(client_map), *client)?;
 
     Ok(())
 }
@@ -154,8 +149,8 @@ fn broadcast_message(
     clients: Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
     sender_addr: SocketAddr,
 ) -> Result<(), ServerError> {
-    //println!("Entering server::broadcast_message()");
-    println!("\tattempting to lock clients to broadcast to clients");
+    log::trace!("Entering server::broadcast_message()");
+    log::debug!("Attempting to lock clients to broadcast to clients");
     let clients_guard = clients.lock().unwrap();
 
     for (addr, client_stream) in clients_guard.iter() {
@@ -165,7 +160,7 @@ fn broadcast_message(
         }
     }
 
-    //println!("Exiting server::broadcast_message()");
+    log::trace!("Exiting server::broadcast_message()");
     Ok(())
 }
 

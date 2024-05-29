@@ -17,7 +17,7 @@ Your next challenge is to professionalize your client-server chat application by
 ### 3. Production-Ready Libraries:
 
 - [ ] Introduce production-ready libraries for key functionalities, such as:
-  - log (with some backend) or tracing (with tracing-subscriber) for logging.
+  - [X] log (with some backend) or tracing (with tracing-subscriber) for logging.
   - rayon for data parallelism, if applicable.
   - itertools for advanced iterator operations, if applicable.
 
@@ -37,11 +37,19 @@ Your next challenge is to professionalize your client-server chat application by
 
 ### Usage:
 
-1. Launch the Server from terminal 1: `cargo run -p server <server ip> <server port>`
-2. Launch a Client to message through the Server from terminal 2: `cargo run -p client <server ip> <server port>`
-
+#### Invoking the server:
 Note: The server can be called without specifiying an IP/Port. In that case, a default address of localhost:11111 will be used.
+
+1. Launch the Server from terminal 1: `cargo run -p server <server ip> <server port>`
+
+#### Invoking a client:
 Note: Multiple Clients must be active with the Server in order to transmit messages, images, or files.
+
+1. Launch a Client to message through the Server from terminal 2: `cargo run -p client <server ip> <server port>`
+
+#### Enabling logging:
+
+1. Prepend your client or server launch command with the log level you wish to see (info, warn, error, debug): `RUST_LOG=<level> <launch command>`
 
 ### Questions:
 

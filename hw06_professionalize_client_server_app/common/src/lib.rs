@@ -31,7 +31,7 @@ pub fn deseralize_msg(input: &[u8]) -> MessageType {
 }
 
 pub fn send_message(stream: &mut TcpStream, message: MessageType) -> Result<(), Box<dyn Error>> {
-    //println!("Entering common::send_message()");
+    log::trace!("Entering common::send_message()");
     // Serialize the message for tx
     let serialized_msg = serialize_msg(message);
 
@@ -44,12 +44,12 @@ pub fn send_message(stream: &mut TcpStream, message: MessageType) -> Result<(), 
     // QUESTION: why <String>.as_bytes() -> write_all, not write?
     stream.write_all(serialized_msg.as_bytes())?;
 
-    //println!("Exiting send_message()\n sent: {}", &serialized_msg);
+    log::trace!("Exiting send_message()\n sent: {}", &serialized_msg);
     Ok(())
 }
 
 pub fn receive_message(stream: &mut TcpStream) -> Result<MessageType, Box<dyn Error>> {
-    //println!("Entering common::recieve_messsage()");
+    log::trace!("Entering common::recieve_messsage()");
 
     // get length of message
     let mut len_bytes = [0u8; 4];
@@ -65,7 +65,7 @@ pub fn receive_message(stream: &mut TcpStream) -> Result<MessageType, Box<dyn Er
             let mut buffer = vec![0u8; len];
             stream.read_exact(&mut buffer)?;
 
-            //println!("Exiting common::receieve_message() [IN OKAY MATCH]");
+            log::trace!("Exiting common::receieve_message() [IN OKAY MATCH]");
             // Deseralize and return message from buffer
             Ok(deseralize_msg(&buffer))
         }
@@ -84,7 +84,7 @@ pub fn receive_message(stream: &mut TcpStream) -> Result<MessageType, Box<dyn Er
             )))
         }
         Err(e) => {
-            println!("Exiting common::receieve_message() [IN UNKOWN ERROR MATCH]");
+            log::trace!("Exiting common::receieve_message() [IN UNKOWN ERROR MATCH]");
             Err(From::from(e))
         }
     }
@@ -96,7 +96,6 @@ pub fn get_hostname(args: Vec<String>) -> String {
 
     match args.len() {
         3 => {
-            dbg!("{}", args.clone());
             server_hostname = args[1].clone();
             server_port = args[2].clone();
         }

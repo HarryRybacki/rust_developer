@@ -16,7 +16,7 @@ use std::{
 };
 
 pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
-    //println!("Entering client::run_client()");
+    log::trace!("Entering client::run_client()");
 
     // Connect to the server
     let mut stream = TcpStream::connect(server_address)?;
@@ -28,23 +28,23 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
 
     thread::spawn(move || {
         while should_listen_clone.load(Ordering::SeqCst) {
-            //println!("Client listener thread is running...");
-            //dbg!("{:?}", should_listen_clone.load(Ordering::SeqCst));
+            log::trace!("Client listener thread is running...");
+            log::debug!("{:?}", should_listen_clone.load(Ordering::SeqCst));
             match client_listener(
                 listner_stream.try_clone().unwrap(),
                 Arc::clone(&should_listen_clone),
             ) {
-                Ok(()) => println!("client listener succesfully returned thread"),
-                Err(e) => eprintln!("client listener encountered error within thread: {}", e),
+                Ok(()) => log::debug!("client listener succesfully returned thread"),
+                Err(e) => log::error!("client listener encountered error within thread: {}", e),
             }
         }
-        //println!("Client listener thread is stopping...");
+        log::trace!("Client listener thread is stopping...");
     });
 
     // Display client usage
     client_usage();
     // Read input from stdin
-    //println!("run_client() beginning loop on stdin");
+    log::trace!("run_client() beginning loop on stdin");
     loop {
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
@@ -68,27 +68,27 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
                         .unwrap()
                         .to_str()
                         .unwrap();
-                    println!("[SENDING FILE] {}", &file_name);
+                    log::info!("[SENDING FILE] {}", &file_name);
                     MessageType::File(String::from(file_name), data)
                 }
                 Err(e) => {
-                    eprintln!("Error reading file: {}", e);
+                    log::error!("Error reading file: {}", e);
                     return Err(Box::new(e));
                 }
             },
             Command::Image => match fs::read(parts[1]) {
                 Ok(data) => {
-                    println!("[SENDING IMAGE] {}", &parts[1]);
+                    log::info!("[SENDING IMAGE] {}", &parts[1]);
                     MessageType::Image(data)
                 }
                 Err(e) => {
-                    eprintln!("Error reading image file: {}", e);
+                    log::error!("Error reading image file: {}", e);
                     return Err(Box::new(e));
                 }
             },
             Command::Text => {
                 let message = parts.join(" ");
-                println!("[SENT] {}", &message);
+                log::info!("[SENT] {}", &message);
                 MessageType::Text(message)
             }
         };
@@ -96,12 +96,12 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
         // Send the message
         send_message(&mut stream, message)?;
     }
-    //println!("run_client() ended loop on stdin");
+    log::debug!("run_client() ended loop on stdin");
 
     // Tell the listener thread to halt
     should_listen.store(false, Ordering::SeqCst);
 
-    //println!("Exiting client::main()");
+    log::trace!("Exiting client::main()");
     Ok(())
 }
 
@@ -115,7 +115,7 @@ fn client_listener(
 
         let _ = match common::receive_message(&mut stream) {
             Ok(msg) => {
-                //println!("Client received message from server");
+                log::trace!("Client received message from server");
                 match msg {
                     MessageType::File(filename, data) => save_file(filename, data),
                     MessageType::Image(image) => save_image(image),
@@ -129,11 +129,11 @@ fn client_listener(
                     //       to make sure the stream hasn't been closed. We want the
                     //       listener to continue listening in this case, but break if not
                     if io_err.kind() == io::ErrorKind::WouldBlock {
-                        //println!("No data available, continuing...");
+                        log::debug!("No data available, continuing...");
                         continue;
                     }
                 }
-                eprintln!("Error in client_listener: {:?}", e);
+                log::error!("Error in client_listener: {:?}", e);
                 break;
             }
         };
@@ -143,7 +143,7 @@ fn client_listener(
 }
 
 fn save_text(message: String) -> Result<(), Box<dyn Error>> {
-    println!("[RECEIVED] {}", message);
+    log::info!("[RECEIVED] {}", message);
     Ok(())
 }
 
@@ -157,7 +157,7 @@ fn save_image(image: Vec<u8>) -> Result<(), Box<dyn Error>> {
     let mut file = fs::File::create(&file_name)?;
     file.write_all(&image)?;
 
-    println!("[RECEIVED IMAGE] Saving to..: {}", file_name);
+    log::info!("[RECEIVED IMAGE] Saving to..: {}", file_name);
     Ok(())
 }
 
@@ -171,7 +171,7 @@ fn save_file(file_name: String, data: Vec<u8>) -> Result<(), Box<dyn Error>> {
     fs::create_dir_all(path)?;
 
     // Create the file
-    let file_path = path.join(&file_name);
+    let file_path = path.join(file_name);
     let mut file = fs::File::create(&file_path)?;
     file.write_all(&data)?;
 
@@ -180,7 +180,7 @@ fn save_file(file_name: String, data: Vec<u8>) -> Result<(), Box<dyn Error>> {
         .to_str()
         .expect("Error encountered after saving file locally...");
 
-    println!("[RECEIVED FILE] Saving to..: {}", file_path_str);
+    log::info!("[RECEIVED FILE] Saving to..: {}", file_path_str);
     Ok(())
 }
 
@@ -198,7 +198,7 @@ fn generate_file_name() -> String {
 }
 
 fn client_usage() {
-    println!(
+    log::info!(
         "
 ------------------------------ \n\
 Message broadcast options: \n\
