@@ -8,14 +8,12 @@ use std::{
 
 use common::{send_message, MessageType};
 
-/// Establishes a server to listen and route messages
+/// Establishes a TcpListener to receive connections from Client's then opens a new
+/// thread for handling messages coming from those connections.
 ///
-/// Functionally, this establishes a TcpListener which will process
-/// incoming streams. New clients are stored in a HashMap. Any message
-/// received by one client will be forwarded to any other client the server
-/// has a current connection with
-///
-/// TODO: How do we know when to halt the server?
+/// # Errors
+/// Function will propogate up a ServerError if there is an issue processing the stream's
+/// message.
 pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
     log::trace!("Entering server::listen_and_accept()");
 
@@ -51,6 +49,12 @@ pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
     Ok(())
 }
 
+/// Loops over a TcpStream and handles incoming messsages from a client's
+/// connection then broadcasts that message to every other client.
+///
+/// # Errors
+/// Function will return a Server error if an issue is encountered receiving
+/// the message or reading from the stream.
 fn handle_client(
     mut stream: TcpStream,
     clients: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
@@ -72,11 +76,10 @@ fn handle_client(
                 msg
             }
             Err(ref e) => {
-                // black magic to let server loop
                 if let Some(io_err) = e.downcast_ref::<io::Error>() {
-                    // Note: The receive_message() will return WouldBlock periodically
+                    // Note: Receive_message() will return WouldBlock periodically
                     //       to make sure the stream hasn't been closed. We want the
-                    //       server to continue listening in this case, but break if not
+                    //       server to continue listening in this case
                     if io_err.kind() == io::ErrorKind::WouldBlock {
                         continue;
                     }
@@ -95,10 +98,17 @@ fn handle_client(
         // Broadcast message out to everyone but the original sender
         broadcast_message(msg, Arc::clone(clients), client_addr)?;
     }
+    log::trace!("Exiting server::handle_client()");
 
     Ok(())
 }
 
+/// Attempts to add a Client's TcpStream and SocketAddr to the Server's HashMap
+/// before informing all other connected Clients of the new one.
+///
+/// # Errors
+/// Function will return a ServerError if an issue is encountered locking the
+/// Clients HashMap or if there is an issue broadcasting the message.
 fn add_client(
     client_map: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
     client: &SocketAddr,
@@ -108,7 +118,6 @@ fn add_client(
         // Wrap in expression so the guard is returned immediatly after completing its insert
         log::debug!("Attempting to lock clients to insert new client");
         let mut clients_guard = client_map.lock().unwrap();
-        // QUESTION: Is it smells bad to deref the SocketAddr like this?
         clients_guard.insert(*client, stream.try_clone().unwrap());
         log::info!("Server added client connection: {}", &client);
     }
@@ -122,12 +131,18 @@ fn add_client(
 
     Ok(())
 }
-
+/// Attempts to remove a Client's TcpStream and SocketAddr to the Server's HashMap
+/// before informing all other connected Clients they have left.
+///
+/// # Errors
+/// Function will return a ServerError if an issue is encountered locking the
+/// Clients HashMap or if there is an issue broadcasting the message.
 fn drop_client(
     client_map: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
     client: &SocketAddr,
 ) -> Result<(), ServerError> {
     {
+        // Wrap in expression so the guard is returned immediatly after completing its remove
         log::debug!("Attempting to lock clients to drop old client");
         let mut clients_guard = client_map.lock().unwrap();
         clients_guard.remove(client);
@@ -144,6 +159,11 @@ fn drop_client(
     Ok(())
 }
 
+/// Broadcasts a MessageType to all clients other than the original sender.
+///
+/// # Errors
+/// Function will return a ServerError if an issue is encountered locking the
+/// Clients HashMap or while sending messages to clients.
 fn broadcast_message(
     message: MessageType,
     clients: Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
@@ -164,6 +184,9 @@ fn broadcast_message(
     Ok(())
 }
 
+/// Leverage a custom error type in Server to keep things thread safe.
+/// Generic Box<dyn Errors> were causing chaos with the compiler after
+/// makin thigs multi-threaded.
 #[derive(Debug)]
 pub enum ServerError {
     Io(io::Error),

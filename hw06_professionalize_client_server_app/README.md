@@ -16,7 +16,7 @@ Your next challenge is to professionalize your client-server chat application by
 
 ### 3. Production-Ready Libraries:
 
-- [ ] Introduce production-ready libraries for key functionalities, such as:
+- [X] Introduce production-ready libraries for key functionalities, such as:
   - [X] log (with some backend) or tracing (with tracing-subscriber) for logging.
   - rayon for data parallelism, if applicable.
   - itertools for advanced iterator operations, if applicable.
@@ -29,7 +29,7 @@ Your next challenge is to professionalize your client-server chat application by
 ### 5. Documentation and Comments:
 
 - [ ] Update your README.md to document how to use the new crates and any significant changes you've made to the application structure.
-- [ ] Add comments throughout your code to explain your reasoning and provide guidance on how the code works.
+- [X] Add comments throughout your code to explain your reasoning and provide guidance on how the code works.
 
 ### 6. Refactoring:
 

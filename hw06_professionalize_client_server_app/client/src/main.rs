@@ -1,6 +1,8 @@
-use env_logger::{Env, Builder};
+use env_logger::{Builder, Env};
 use std::env;
 
+/// Establishes a Client to send and receive messages (text, images, and
+/// files) from other clients connected to a Remote server.
 fn main() {
     // Establish our logger
     let env = Env::default().filter_or("RUST_LOG", "info");

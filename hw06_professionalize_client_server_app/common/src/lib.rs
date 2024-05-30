@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{error::Error, io, io::Read, io::Write, net::TcpStream};
 
+/// Represents a Message consisteng of: Text, an Image, or a File.
 #[derive(Serialize, Deserialize, Debug)]
 pub enum MessageType {
     Text(String),
@@ -20,16 +21,25 @@ impl Clone for MessageType {
     }
 }
 
+/// Retuns a String representing a serialized MessageType.
 pub fn serialize_msg(message: MessageType) -> String {
     // Serde Serialize trait on the MessageType makes this seamless
     serde_json::to_string(&message).unwrap()
 }
 
+/// Retuns a MessageType from a deserialized Byte Array.
 pub fn deseralize_msg(input: &[u8]) -> MessageType {
     // Serde Deserialize trait on the MessageType makes this seamless
     serde_json::from_slice(input).unwrap()
 }
 
+/// Sends a MessageType to a specified TcpStream. Uses a 'Length First'
+/// protocol by enapsulating the serialized Messagetype's length in a u32
+/// and sendig it to the Server before the actual message.
+///
+/// # Errors
+/// Functinon will propogate up any errors encountered serializing a MessageType
+/// or while writing to the TcpStream.
 pub fn send_message(stream: &mut TcpStream, message: MessageType) -> Result<(), Box<dyn Error>> {
     log::trace!("Entering common::send_message()");
     // Serialize the message for tx
@@ -37,17 +47,24 @@ pub fn send_message(stream: &mut TcpStream, message: MessageType) -> Result<(), 
 
     // Send length of serialized message (as 4-byte value)
     let len = serialized_msg.len() as u32;
-    // QUESTION: why <u32>.to_be_bytes() -> write, not write_all?
     stream.write_all(&len.to_be_bytes())?;
 
     // Send the serialized message
-    // QUESTION: why <String>.as_bytes() -> write_all, not write?
     stream.write_all(serialized_msg.as_bytes())?;
 
     log::trace!("Exiting send_message()\n sent: {}", &serialized_msg);
     Ok(())
 }
 
+/// Receives a MessageType to a specified TcpStream. Uses a 'Length First'
+/// protocol by retrieving the serialized Messagetype's length in a u32 first
+/// then reading and attempting to deserialize the actual message.
+///
+/// # Errors
+/// Functinon will propogate up any errors encountered:
+/// - set_read_timeout may result in a WouldBlock error
+/// - Reading from the stream can fail and error
+/// - Deserializing the message may fail and error
 pub fn receive_message(stream: &mut TcpStream) -> Result<MessageType, Box<dyn Error>> {
     log::trace!("Entering common::recieve_messsage()");
 
@@ -90,6 +107,7 @@ pub fn receive_message(stream: &mut TcpStream) -> Result<MessageType, Box<dyn Er
     }
 }
 
+/// Generates a formatted String hostname by parsing the args.
 pub fn get_hostname(args: Vec<String>) -> String {
     let server_hostname: String;
     let server_port: String;

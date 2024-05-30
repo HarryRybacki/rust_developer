@@ -15,10 +15,21 @@ use std::{
     time::Duration,
 };
 
+/// Runner function for clients.
+///
+/// Maintains a TcpStream with a remote Server. Spawns a listening thread to
+/// handle receiving messages from the Server. Loops on stdin to process
+/// User request to send messages or disconnect from the Server.
+///
+/// # Errors
+/// Function will propogate up Errors.
+/// - Connecting to the Server's TcpStream
+/// - Handling incoming messages from Server
+/// - Processing User requests to send messages
 pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
     log::trace!("Entering client::run_client()");
 
-    // Connect to the server
+    // Connect to the Server
     let mut stream = TcpStream::connect(server_address)?;
 
     // Launch listener thread to handle messages from the server
@@ -29,7 +40,6 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
     thread::spawn(move || {
         while should_listen_clone.load(Ordering::SeqCst) {
             log::trace!("Client listener thread is running...");
-            log::debug!("{:?}", should_listen_clone.load(Ordering::SeqCst));
             match client_listener(
                 listner_stream.try_clone().unwrap(),
                 Arc::clone(&should_listen_clone),
@@ -38,13 +48,13 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
                 Err(e) => log::error!("client listener encountered error within thread: {}", e),
             }
         }
-        log::trace!("Client listener thread is stopping...");
+        log::trace!("Client listener thread has halted...");
     });
 
     // Display client usage
     client_usage();
-    // Read input from stdin
     log::trace!("run_client() beginning loop on stdin");
+    // Process User requests from stdin
     loop {
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
@@ -105,12 +115,19 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+/// Loops over a TcpStream and handles incoming messsages from the server.
+/// a client's. Will halt when `should_listen` is set to False.
+///
+/// # Errors
+/// Function will propogate up Errors returned from receive_message.
+/// It is expected that receive_message() will return a WouldBlock periodically
+/// to avoid IO blocking. In this case, we just restart the main loop.
 fn client_listener(
     mut stream: TcpStream,
     should_listen: Arc<AtomicBool>,
 ) -> Result<(), Box<dyn Error>> {
     while should_listen.load(Ordering::SeqCst) {
-        // Use a non-blocking read with a timeout
+        // Use a non-blocking read with a timeout to avoid IO blocking
         stream.set_read_timeout(Some(Duration::from_secs(1)))?;
 
         let _ = match common::receive_message(&mut stream) {
@@ -142,16 +159,20 @@ fn client_listener(
     Ok(())
 }
 
+/// Displays text from a recieved message.
+///
+/// Returns Result of Ok or Error.
 fn save_text(message: String) -> Result<(), Box<dyn Error>> {
     log::info!("[RECEIVED] {}", message);
     Ok(())
 }
 
+/// Saves a byte array as an image locally.
+///
+/// Assumes filetype is `.png` and storing in `./images/` dir.
+///
+/// Returns Result of Ok or Error.
 fn save_image(image: Vec<u8>) -> Result<(), Box<dyn Error>> {
-    // Saves a byte array as an image locally
-    // Assumes filetype is `.png` and storing in `./images/` dir
-    // Returns Result of Ok or Error
-
     let file_name = generate_file_name();
 
     let mut file = fs::File::create(&file_name)?;
@@ -161,11 +182,12 @@ fn save_image(image: Vec<u8>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+/// Saves a byte array as a file locally.
+///
+/// Assumes filename includes extension and storing in `./files/` dir.
+///
+/// Returns Result of Ok or Error.
 fn save_file(file_name: String, data: Vec<u8>) -> Result<(), Box<dyn Error>> {
-    // Saves a byte array as a file locally
-    // Assumes filename includes extension and storing in `./files/` dir
-    // Returns Result of Ok or Error
-
     // Attempt to create the path
     let path = std::path::Path::new("./files");
     fs::create_dir_all(path)?;
@@ -184,11 +206,12 @@ fn save_file(file_name: String, data: Vec<u8>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+/// Creates String representing a file's name.
+///
+/// Assumes filetype is `.png` and storing in `./images/` dir.
+///
+/// Returns String or Error.
 fn generate_file_name() -> String {
-    // Creates String representing a file's name
-    // Assumes filetype is `.png` and storing in `./images/` dir
-    // Returns String or Error
-
     // Attempt to create the file path
     let path = path::Path::new("./images");
     fs::create_dir_all(path).unwrap();
@@ -197,6 +220,7 @@ fn generate_file_name() -> String {
     format!("./images/{}.png", now.format("%Y%m%d%H%M%S"))
 }
 
+/// Displays Client usage helper text.
 fn client_usage() {
     log::info!(
         "
