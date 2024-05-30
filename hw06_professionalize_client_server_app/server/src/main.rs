@@ -1,9 +1,10 @@
-use env_logger;
+use env_logger::{Env, Builder};
 use std::env;
 
 fn main() {
     // Establish our logger
-    env_logger::init();
+    let env = Env::default().filter_or("RUST_LOG", "info");
+    Builder::from_env(env).init();
 
     // Process parameters to determine hostname and what not for server
     let args: Vec<String> = env::args().collect();

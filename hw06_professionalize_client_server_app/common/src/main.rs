@@ -1,6 +1,8 @@
-use env_logger;
+use env_logger::{Builder, Env};
 
+/// Solely used to initialize the logger
 fn main() {
     // Establish our logger
-    env_logger::init();
+    let env = Env::default().filter_or("RUST_LOG", "info");
+    Builder::from_env(env).init();
 }
