@@ -23,17 +23,17 @@ Your next challenge is to professionalize your client-server chat application by
 
 ### 4. Crates Exploration:
 
-- [ ] Dive into resources such as [crates.io](https://crates.io/), [lib.rs](https://lib.rs/), or [rust-unofficial/awesome-rust](https://github.com/rust-unofficial/awesome-rust) on GitHub to discover crates that could simplify or enhance your chat application.
-- [ ] Look for crates that offer robust, tested solutions to common problems or that can add new functionality to your application, if you want. Keep in mind that we will be rewriting the application to be asynchronous soon
+- [X] Dive into resources such as [crates.io](https://crates.io/), [lib.rs](https://lib.rs/), or [rust-unofficial/awesome-rust](https://github.com/rust-unofficial/awesome-rust) on GitHub to discover crates that could simplify or enhance your chat application.
+- [X] Look for crates that offer robust, tested solutions to common problems or that can add new functionality to your application, if you want. Keep in mind that we will be rewriting the application to be asynchronous soon
 
 ### 5. Documentation and Comments:
 
-- [ ] Update your README.md to document how to use the new crates and any significant changes you've made to the application structure.
+- [X] Update your README.md to document how to use the new crates and any significant changes you've made to the application structure.
 - [X] Add comments throughout your code to explain your reasoning and provide guidance on how the code works.
 
 ### 6. Refactoring:
 
-- [ ] Refactor your existing codebase to make use of the new crates and shared library, ensuring that everything is cleanly integrated and operates smoothly.
+- [X] Refactor your existing codebase to make use of the new crates and shared library, ensuring that everything is cleanly integrated and operates smoothly.
 
 ### Usage:
 
@@ -48,9 +48,24 @@ Note: Multiple Clients must be active with the Server in order to transmit messa
 1. Launch a Client to message through the Server from terminal 2: `cargo run -p client <server ip> <server port>`
 
 #### Enabling logging:
+Note: INFO level logging is enabled by default.
 
 1. Prepend your client or server launch command with the log level you wish to see (info, warn, error, debug): `RUST_LOG=<level> <launch command>`
 
 ### Questions:
 
+No new questions came up this week related to the homework. 
+
 ### Class Notes:
+
+N/A
+
+### Reflections for Lukáš:
+
+This week was busy (outside of class). So not so much time to play around here. 
+
+Fortunately, I already had a leg up on this week's homework having refactored my application last week; separating client and server into their own crates as well as integrating a common library for shared functions e.g. `send_message`. 
+
+The biggest refactor of the week was moving away from the println/eprintln macros and integrating log/env_logger combo throughout the codebase. This cleaned up the output from both the client and the server a lot. I was surprised at how easy the logger was to establish. But, I'm still uncetain how to handle logging output in the shared library. I'll open a GH issue and ping you in it.
+
+I did plan on adding custom error type for the Client code but opted to hold off until playing with `anyhow` and `thiserror` next week first.
