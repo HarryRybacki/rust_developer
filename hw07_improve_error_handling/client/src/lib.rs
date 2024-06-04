@@ -128,7 +128,7 @@ fn client_listener(mut stream: TcpStream, should_listen: Arc<AtomicBool>) -> Res
         // Use a non-blocking read with a timeout to avoid IO blocking
         stream.set_read_timeout(Some(Duration::from_secs(1)))?;
 
-        let _ = match common::receive_message(&mut stream) {
+        match common::receive_message(&mut stream) {
             Ok(msg) => {
                 log::trace!("Client received message from server");
                 match msg {
