@@ -1,6 +1,6 @@
+use anyhow::Result;
 use env_logger::{Builder, Env};
 use std::env;
-use anyhow::Result;
 
 /// Establishes a Client to send and receive messages (text, images, and
 /// files) from other clients connected to a Remote server.

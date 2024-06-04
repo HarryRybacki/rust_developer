@@ -5,7 +5,7 @@ In this assignment, you will be enhancing the robustness of your client-server c
 
 ### Integrate Anyhow and Thiserror:
 
-- [ ] Introduce the anyhow crate to manage errors in a straightforward, flexible way. This crate is especially useful for handling errors that don't need much context or are unexpected.
+- [X] Introduce the anyhow crate to manage errors in a straightforward, flexible way. This crate is especially useful for handling errors that don't need much context or are unexpected.
 - [ ] Utilize the thiserror crate to create custom, meaningful error types for your application. This is particularly beneficial for errors where you need more context and structured data.
 
 ### Error Handling in the Server:

@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{error::Error, io, io::Read, io::Write, net::TcpStream};
 
@@ -22,15 +23,15 @@ impl Clone for MessageType {
 }
 
 /// Retuns a String representing a serialized MessageType.
-pub fn serialize_msg(message: MessageType) -> String {
+pub fn serialize_msg(message: MessageType) -> Result<String> {
     // Serde Serialize trait on the MessageType makes this seamless
-    serde_json::to_string(&message).unwrap()
+    serde_json::to_string(&message).context("Failed to serialize message")
 }
 
 /// Retuns a MessageType from a deserialized Byte Array.
-pub fn deseralize_msg(input: &[u8]) -> MessageType {
+pub fn deseralize_msg(input: &[u8]) -> Result<MessageType> {
     // Serde Deserialize trait on the MessageType makes this seamless
-    serde_json::from_slice(input).unwrap()
+    serde_json::from_slice(input).context("Failed to deserialize message")
 }
 
 /// Sends a MessageType to a specified TcpStream. Uses a 'Length First'
@@ -40,17 +41,21 @@ pub fn deseralize_msg(input: &[u8]) -> MessageType {
 /// # Errors
 /// Functinon will propogate up any errors encountered serializing a MessageType
 /// or while writing to the TcpStream.
-pub fn send_message(stream: &mut TcpStream, message: MessageType) -> Result<(), Box<dyn Error>> {
+pub fn send_message(stream: &mut TcpStream, message: MessageType) -> Result<()> {
     log::trace!("Entering common::send_message()");
     // Serialize the message for tx
-    let serialized_msg = serialize_msg(message);
+    let serialized_msg = serialize_msg(message)?;
 
     // Send length of serialized message (as 4-byte value)
     let len = serialized_msg.len() as u32;
-    stream.write_all(&len.to_be_bytes())?;
+    stream
+        .write_all(&len.to_be_bytes())
+        .context("Failed to write message length to stream.")?;
 
     // Send the serialized message
-    stream.write_all(serialized_msg.as_bytes())?;
+    stream
+        .write_all(serialized_msg.as_bytes())
+        .context("Failed to write message to stream.")?;
 
     log::trace!("Exiting send_message()\n sent: {}", &serialized_msg);
     Ok(())
@@ -84,7 +89,7 @@ pub fn receive_message(stream: &mut TcpStream) -> Result<MessageType, Box<dyn Er
 
             log::trace!("Exiting common::receieve_message() [IN OKAY MATCH]");
             // Deseralize and return message from buffer
-            Ok(deseralize_msg(&buffer))
+            Ok(deseralize_msg(&buffer)?)
         }
         Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
             // If no data is available, return an error indicating the would block condition

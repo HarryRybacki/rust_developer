@@ -190,7 +190,7 @@ fn broadcast_message(
             let mut stream = client_stream
                 .try_clone()
                 .context("Failed to clone client's stream.")?;
-            let _ = send_message(&mut stream, message.clone());
+            send_message(&mut stream, message.clone())?;
         }
     }
 

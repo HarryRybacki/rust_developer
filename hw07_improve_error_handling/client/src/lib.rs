@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Context, Result};
 use chrono::Local;
 use common::{send_message, MessageType};
 use std::{
@@ -14,7 +15,6 @@ use std::{
     thread,
     time::Duration,
 };
-use anyhow::{anyhow, Context, Result};
 
 /// Runner function for clients.
 ///
@@ -105,7 +105,7 @@ pub fn run_client(server_address: &str) -> Result<()> {
         };
 
         // Send the message
-        send_message(&mut stream, message); // TODO: Make sure your circle back and add the try operator for error propgation after updating send_message()
+        send_message(&mut stream, message)?;
     }
     log::debug!("run_client() ended loop on stdin");
 
@@ -123,10 +123,7 @@ pub fn run_client(server_address: &str) -> Result<()> {
 /// Function will propogate up Errors returned from receive_message.
 /// It is expected that receive_message() will return a WouldBlock periodically
 /// to avoid IO blocking. In this case, we just restart the main loop.
-fn client_listener(
-    mut stream: TcpStream,
-    should_listen: Arc<AtomicBool>,
-) -> Result<()> {
+fn client_listener(mut stream: TcpStream, should_listen: Arc<AtomicBool>) -> Result<()> {
     while should_listen.load(Ordering::SeqCst) {
         // Use a non-blocking read with a timeout to avoid IO blocking
         stream.set_read_timeout(Some(Duration::from_secs(1)))?;
@@ -176,8 +173,10 @@ fn save_text(message: String) -> Result<()> {
 fn save_image(image: Vec<u8>) -> Result<()> {
     let file_name = generate_file_name();
 
-    let mut file = fs::File::create(&file_name).with_context(|| format!("Failed to open file: {}", &file_name))?;
-    file.write_all(&image).context("Failed to save image locally")?;
+    let mut file = fs::File::create(&file_name)
+        .with_context(|| format!("Failed to open file: {}", &file_name))?;
+    file.write_all(&image)
+        .context("Failed to save image locally")?;
 
     log::info!("[RECEIVED IMAGE] Saving to..: {}", file_name);
     Ok(())
@@ -195,9 +194,13 @@ fn save_file(file_name: String, data: Vec<u8>) -> Result<()> {
 
     // Create and save the file
     let file_path = path.join(file_name);
-    let file_path_str = &file_path.to_str().context("Failed to convert file path to string")?;
-    let mut file = fs::File::create(&file_path).with_context(|| format!("Failed to create file: {}", &file_path_str))?;
-    file.write_all(&data).context("Failed to write file to local storage.")?;
+    let file_path_str = &file_path
+        .to_str()
+        .context("Failed to convert file path to string")?;
+    let mut file = fs::File::create(&file_path)
+        .with_context(|| format!("Failed to create file: {}", &file_path_str))?;
+    file.write_all(&data)
+        .context("Failed to write file to local storage.")?;
 
     log::info!("[RECEIVED FILE] Saving to..: {}", file_path_str);
     Ok(())
