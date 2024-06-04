@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use std::{
     collections::HashMap,
     fmt, io,
@@ -14,11 +15,11 @@ use common::{send_message, MessageType};
 /// # Errors
 /// Function will propogate up a ServerError if there is an issue processing the stream's
 /// message.
-pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
-    log::trace!("Entering server::listen_and_accept()");
+pub fn listen_and_accept(address: &str) -> Result<()> {
+    log::trace!("Entering listen_and_accept()");
 
     // Establish TcpListener to capture incoming streams
-    let listener = TcpListener::bind(address)?;
+    let listener = TcpListener::bind(address).context("Failed to bind to listening address.")?;
 
     // Create a threadsafe HashMap to track clients connected to the server
     let clients = Arc::new(Mutex::new(HashMap::<SocketAddr, TcpStream>::new()));
@@ -28,8 +29,10 @@ pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
         log::info!("Server is opening a new stream");
 
         // Unwrap stream, note peer address, and clone Clients for the thread
-        let stream = stream?;
-        let peer_addr = stream.peer_addr()?;
+        let stream = stream.context("Failed to open stream.")?;
+        let peer_addr = stream
+            .peer_addr()
+            .context("Failed to grab client's peer address.")?;
         let inner_clients = Arc::clone(&clients);
 
         // Create new thread to manage handle_client
@@ -45,7 +48,7 @@ pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
         });
     }
 
-    log::trace!("Exiting server::listen_and_accept()");
+    log::trace!("Exiting listen_and_accept()");
     Ok(())
 }
 
@@ -58,16 +61,24 @@ pub fn listen_and_accept(address: &str) -> Result<(), ServerError> {
 fn handle_client(
     mut stream: TcpStream,
     clients: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
-) -> Result<(), ServerError> {
-    log::trace!("Entering server::handle_client()");
+) -> Result<()> {
+    log::trace!("Entering handle_client()");
 
     // Clone clients HashMap and add the stream
     let inner_clients = Arc::clone(clients);
     log::debug!("A new clone of clients has been made.");
-    let client_addr = stream.peer_addr()?;
+    let client_addr = stream
+        .peer_addr()
+        .context("Failed to grab client's peer address.")?;
 
     // Add new client to the Servers HashMap
-    let _ = add_client(&inner_clients, &client_addr, stream.try_clone()?);
+    let _ = add_client(
+        &inner_clients,
+        &client_addr,
+        stream
+            .try_clone()
+            .context("Failed to clone client stream.")?,
+    );
 
     loop {
         let msg = match common::receive_message(&mut stream) {
@@ -98,7 +109,7 @@ fn handle_client(
         // Broadcast message out to everyone but the original sender
         broadcast_message(msg, Arc::clone(clients), client_addr)?;
     }
-    log::trace!("Exiting server::handle_client()");
+    log::trace!("Exiting handle_client()");
 
     Ok(())
 }
@@ -113,12 +124,13 @@ fn add_client(
     client_map: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
     client: &SocketAddr,
     stream: TcpStream,
-) -> Result<(), ServerError> {
+) -> Result<()> {
     {
         // Wrap in expression so the guard is returned immediatly after completing its insert
         log::debug!("Attempting to lock clients to insert new client");
         let mut clients_guard = client_map.lock().unwrap();
-        clients_guard.insert(*client, stream.try_clone().unwrap());
+        let stream_clone = stream.try_clone().context("Failed cloning client stream.");
+        clients_guard.insert(*client, stream_clone.unwrap());
         log::info!("Server added client connection: {}", &client);
     }
 
@@ -140,7 +152,7 @@ fn add_client(
 fn drop_client(
     client_map: &Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
     client: &SocketAddr,
-) -> Result<(), ServerError> {
+) -> Result<()> {
     {
         // Wrap in expression so the guard is returned immediatly after completing its remove
         log::debug!("Attempting to lock clients to drop old client");
@@ -168,19 +180,21 @@ fn broadcast_message(
     message: MessageType,
     clients: Arc<Mutex<HashMap<SocketAddr, TcpStream>>>,
     sender_addr: SocketAddr,
-) -> Result<(), ServerError> {
-    log::trace!("Entering server::broadcast_message()");
+) -> Result<()> {
+    log::trace!("Entering broadcast_message()");
     log::debug!("Attempting to lock clients to broadcast to clients");
     let clients_guard = clients.lock().unwrap();
 
     for (addr, client_stream) in clients_guard.iter() {
         if *addr != sender_addr {
-            let mut stream = client_stream.try_clone()?;
+            let mut stream = client_stream
+                .try_clone()
+                .context("Failed to clone client's stream.")?;
             let _ = send_message(&mut stream, message.clone());
         }
     }
 
-    log::trace!("Exiting server::broadcast_message()");
+    log::trace!("Exiting broadcast_message()");
     Ok(())
 }
 
