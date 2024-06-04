@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use std::{
     collections::HashMap,
-    fmt, io,
+    io,
     net::{SocketAddr, TcpListener, TcpStream},
     sync::{Arc, Mutex},
     thread,
@@ -196,38 +196,4 @@ fn broadcast_message(
 
     log::trace!("Exiting broadcast_message()");
     Ok(())
-}
-
-/// Leverage a custom error type in Server to keep things thread safe.
-/// Generic Box<dyn Errors> were causing chaos with the compiler after
-/// makin thigs multi-threaded.
-#[derive(Debug)]
-pub enum ServerError {
-    Io(io::Error),
-    SerdeJson(serde_json::Error),
-    Other(String),
-}
-
-impl fmt::Display for ServerError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ServerError::Io(err) => write!(f, "IO error: {}", err),
-            ServerError::SerdeJson(err) => write!(f, "Serialization error: {}", err),
-            ServerError::Other(err) => write!(f, "Other error: {}", err),
-        }
-    }
-}
-
-impl std::error::Error for ServerError {}
-
-impl From<io::Error> for ServerError {
-    fn from(err: io::Error) -> Self {
-        ServerError::Io(err)
-    }
-}
-
-impl From<serde_json::Error> for ServerError {
-    fn from(err: serde_json::Error) -> Self {
-        ServerError::SerdeJson(err)
-    }
 }
