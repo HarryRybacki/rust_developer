@@ -1,9 +1,10 @@
 use env_logger::{Builder, Env};
 use std::env;
+use anyhow::Result;
 
 /// Establishes a Client to send and receive messages (text, images, and
 /// files) from other clients connected to a Remote server.
-fn main() {
+fn main() -> Result<()> {
     // Establish our logger
     let env = Env::default().filter_or("RUST_LOG", "info");
     Builder::from_env(env).init();
@@ -19,4 +20,6 @@ fn main() {
             log::error!("Client encountered error while running: {}\nExiting...", e)
         }
     }
+
+    Ok(())
 }

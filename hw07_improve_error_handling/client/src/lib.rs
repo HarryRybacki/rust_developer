@@ -14,6 +14,7 @@ use std::{
     thread,
     time::Duration,
 };
+use anyhow::{anyhow, Context, Result};
 
 /// Runner function for clients.
 ///
@@ -26,7 +27,7 @@ use std::{
 /// - Connecting to the Server's TcpStream
 /// - Handling incoming messages from Server
 /// - Processing User requests to send messages
-pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
+pub fn run_client(server_address: &str) -> Result<()> {
     log::trace!("Entering client::run_client()");
 
     // Connect to the Server
@@ -83,7 +84,7 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
                 }
                 Err(e) => {
                     log::error!("Error reading file: {}", e);
-                    return Err(Box::new(e));
+                    return Err(anyhow!("Error: {}", e));
                 }
             },
             Command::Image => match fs::read(parts[1]) {
@@ -93,7 +94,7 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
                 }
                 Err(e) => {
                     log::error!("Error reading image file: {}", e);
-                    return Err(Box::new(e));
+                    return Err(anyhow!("Error: {}", e));
                 }
             },
             Command::Text => {
@@ -104,7 +105,7 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
         };
 
         // Send the message
-        send_message(&mut stream, message)?;
+        send_message(&mut stream, message); // TODO: Make sure your circle back and add the try operator for error propgation after updating send_message()
     }
     log::debug!("run_client() ended loop on stdin");
 
@@ -125,7 +126,7 @@ pub fn run_client(server_address: &str) -> Result<(), Box<dyn Error>> {
 fn client_listener(
     mut stream: TcpStream,
     should_listen: Arc<AtomicBool>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<()> {
     while should_listen.load(Ordering::SeqCst) {
         // Use a non-blocking read with a timeout to avoid IO blocking
         stream.set_read_timeout(Some(Duration::from_secs(1)))?;
@@ -134,9 +135,9 @@ fn client_listener(
             Ok(msg) => {
                 log::trace!("Client received message from server");
                 match msg {
-                    MessageType::File(filename, data) => save_file(filename, data),
-                    MessageType::Image(image) => save_image(image),
-                    MessageType::Text(message) => save_text(message),
+                    MessageType::File(filename, data) => save_file(filename, data)?,
+                    MessageType::Image(image) => save_image(image)?,
+                    MessageType::Text(message) => save_text(message)?,
                 }
             }
             Err(ref e) => {
@@ -162,7 +163,7 @@ fn client_listener(
 /// Displays text from a recieved message.
 ///
 /// Returns Result of Ok or Error.
-fn save_text(message: String) -> Result<(), Box<dyn Error>> {
+fn save_text(message: String) -> Result<()> {
     log::info!("[RECEIVED] {}", message);
     Ok(())
 }
@@ -172,11 +173,11 @@ fn save_text(message: String) -> Result<(), Box<dyn Error>> {
 /// Assumes filetype is `.png` and storing in `./images/` dir.
 ///
 /// Returns Result of Ok or Error.
-fn save_image(image: Vec<u8>) -> Result<(), Box<dyn Error>> {
+fn save_image(image: Vec<u8>) -> Result<()> {
     let file_name = generate_file_name();
 
-    let mut file = fs::File::create(&file_name)?;
-    file.write_all(&image)?;
+    let mut file = fs::File::create(&file_name).with_context(|| format!("Failed to open file: {}", &file_name))?;
+    file.write_all(&image).context("Failed to save image locally")?;
 
     log::info!("[RECEIVED IMAGE] Saving to..: {}", file_name);
     Ok(())
@@ -187,20 +188,16 @@ fn save_image(image: Vec<u8>) -> Result<(), Box<dyn Error>> {
 /// Assumes filename includes extension and storing in `./files/` dir.
 ///
 /// Returns Result of Ok or Error.
-fn save_file(file_name: String, data: Vec<u8>) -> Result<(), Box<dyn Error>> {
+fn save_file(file_name: String, data: Vec<u8>) -> Result<()> {
     // Attempt to create the path
     let path = std::path::Path::new("./files");
-    fs::create_dir_all(path)?;
+    fs::create_dir_all(path).context("Failed to create directory.")?;
 
-    // Create the file
+    // Create and save the file
     let file_path = path.join(file_name);
-    let mut file = fs::File::create(&file_path)?;
-    file.write_all(&data)?;
-
-    // Save the file
-    let file_path_str = file_path
-        .to_str()
-        .expect("Error encountered after saving file locally...");
+    let file_path_str = &file_path.to_str().context("Failed to convert file path to string")?;
+    let mut file = fs::File::create(&file_path).with_context(|| format!("Failed to create file: {}", &file_path_str))?;
+    file.write_all(&data).context("Failed to write file to local storage.")?;
 
     log::info!("[RECEIVED FILE] Saving to..: {}", file_path_str);
     Ok(())
