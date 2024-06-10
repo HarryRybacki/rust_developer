@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::{error::Error, io, io::Read, io::Write, net::TcpStream};
+use std::{io, io::Read, io::Write, net::TcpStream};
+use thiserror::Error;
 
 /// Represents a Message consisteng of: Text, an Image, or a File.
 #[derive(Serialize, Deserialize, Debug)]
@@ -22,16 +23,37 @@ impl Clone for MessageType {
     }
 }
 
+#[derive(Error, Debug)]
+pub enum AppError {
+    #[error("IO Error: {0}")]
+    Io(#[from] io::Error),
+
+    #[error("Serialization Error: {0}")]
+    Serialization(#[from] serde_json::Error),
+
+    #[error("Message Error: {0}")]
+    Message(String),
+
+    #[error("Client or Server disconnected")]
+    Disconnected,
+
+    #[error("Would Block")]
+    WouldBlock,
+
+    #[error("Unknown Error: {0}")]
+    Unknown(String),
+}
+
 /// Retuns a String representing a serialized MessageType.
-pub fn serialize_msg(message: MessageType) -> Result<String> {
+pub fn serialize_msg(message: MessageType) -> Result<String, AppError> {
     // Serde Serialize trait on the MessageType makes this seamless
-    serde_json::to_string(&message).context("Failed to serialize message")
+    serde_json::to_string(&message).map_err(AppError::from)
 }
 
 /// Retuns a MessageType from a deserialized Byte Array.
-pub fn deseralize_msg(input: &[u8]) -> Result<MessageType> {
+pub fn deseralize_msg(input: &[u8]) -> Result<MessageType, AppError> {
     // Serde Deserialize trait on the MessageType makes this seamless
-    serde_json::from_slice(input).context("Failed to deserialize message")
+    serde_json::from_slice(input).map_err(AppError::from)
 }
 
 /// Sends a MessageType to a specified TcpStream. Uses a 'Length First'
@@ -70,7 +92,7 @@ pub fn send_message(stream: &mut TcpStream, message: MessageType) -> Result<()> 
 /// - set_read_timeout may result in a WouldBlock error
 /// - Reading from the stream can fail and error
 /// - Deserializing the message may fail and error
-pub fn receive_message(stream: &mut TcpStream) -> Result<MessageType, Box<dyn Error>> {
+pub fn receive_message(stream: &mut TcpStream) -> Result<MessageType, AppError> {
     log::trace!("Entering common::recieve_messsage()");
 
     // get length of message
@@ -89,26 +111,14 @@ pub fn receive_message(stream: &mut TcpStream) -> Result<MessageType, Box<dyn Er
 
             log::trace!("Exiting common::receieve_message() [IN OKAY MATCH]");
             // Deseralize and return message from buffer
+
             Ok(deseralize_msg(&buffer)?)
-        }
-        Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-            // If no data is available, return an error indicating the would block condition
-            Err(Box::new(io::Error::new(
-                io::ErrorKind::WouldBlock,
-                "No data available",
-            )))
-        }
-        Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => {
-            // A client has disconnected
-            Err(Box::new(io::Error::new(
-                io::ErrorKind::UnexpectedEof,
-                "Client disconnected",
-            )))
-        }
-        Err(e) => {
-            log::trace!("Exiting common::receieve_message() [IN UNKOWN ERROR MATCH]");
-            Err(From::from(e))
-        }
+        } // If no data is available, return an error indicating the would block condition
+        Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => Err(AppError::WouldBlock),
+        // A client or server has disconnected
+        Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => Err(AppError::Disconnected),
+        // We've encountered an unexpected Error state
+        Err(e) => Err(AppError::Io(e)),
     }
 }
 

@@ -1,13 +1,12 @@
 use anyhow::{Context, Result};
 use std::{
     collections::HashMap,
-    io,
     net::{SocketAddr, TcpListener, TcpStream},
     sync::{Arc, Mutex},
     thread,
 };
 
-use common::{send_message, MessageType};
+use common::{send_message, AppError, MessageType};
 
 /// Establishes a TcpListener to receive connections from Client's then opens a new
 /// thread for handling messages coming from those connections.
@@ -86,22 +85,13 @@ fn handle_client(
                 log::debug!("returned from common::receive_message() [IN OK MATCH]");
                 msg
             }
-            Err(ref e) => {
-                if let Some(io_err) = e.downcast_ref::<io::Error>() {
-                    // Note: Receive_message() will return WouldBlock periodically
-                    //       to make sure the stream hasn't been closed. We want the
-                    //       server to continue listening in this case
-                    if io_err.kind() == io::ErrorKind::WouldBlock {
-                        continue;
-                    }
-                }
-                if let Some(io_err) = e.downcast_ref::<io::Error>() {
-                    if io_err.kind() == io::ErrorKind::UnexpectedEof {
-                        log::info!("A client probably disconnected, continuing...");
-                        break;
-                    }
-                }
-                log::error!("Error in client_listener: {:?} [IN UKNOWN ERROR MATCH", e);
+            Err(AppError::WouldBlock) => continue,
+            Err(AppError::Disconnected) => {
+                log::info!("Probable client disconnect -- continuing...");
+                break;
+            }
+            Err(e) => {
+                log::error!("Error in client_listener: {:?} [IN UNKNOWN ERROR MATCH]", e);
                 break;
             }
         };

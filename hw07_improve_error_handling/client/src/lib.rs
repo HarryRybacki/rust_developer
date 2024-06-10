@@ -1,12 +1,12 @@
 use anyhow::{anyhow, Context, Result};
 use chrono::Local;
-use common::{send_message, MessageType};
+use common::{send_message, AppError, MessageType};
 use std::{
     error::Error,
     fs,
-    io::{self, Write},
+    io::Write,
     net::TcpStream,
-    path,
+    path, process,
     str::FromStr,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -137,18 +137,14 @@ fn client_listener(mut stream: TcpStream, should_listen: Arc<AtomicBool>) -> Res
                     MessageType::Text(message) => save_text(message)?,
                 }
             }
-            Err(ref e) => {
-                // black magic to let server loop
-                if let Some(io_err) = e.downcast_ref::<io::Error>() {
-                    // Note: The receive_message() will return WouldBlock periodically
-                    //       to make sure the stream hasn't been closed. We want the
-                    //       listener to continue listening in this case, but break if not
-                    if io_err.kind() == io::ErrorKind::WouldBlock {
-                        log::debug!("No data available, continuing...");
-                        continue;
-                    }
-                }
-                log::error!("Error in client_listener: {:?}", e);
+            Err(AppError::WouldBlock) => continue,
+            Err(AppError::Disconnected) => {
+                log::info!("The server disconnected, shutting down the client...");
+                println!("Server has shutdown. \nExiting...");
+                process::exit(0)
+            }
+            Err(e) => {
+                log::error!("Error in client_listener: {:?} [IN UNKNOWN ERROR MATCH]", e);
                 break;
             }
         };
