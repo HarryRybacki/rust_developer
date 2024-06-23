@@ -1,10 +1,11 @@
-use std::env;
 use anyhow::Result;
 use env_logger::{Builder, Env};
-use hw08_tokio_rewrite::get_hostname;
+use hw08_tokio_rewrite::{get_hostname, MessageType};
+use std::env;
 use tokio::{
     io::{self, AsyncBufReadExt, BufReader},
-    net::TcpStream,
+    net::{TcpListener, TcpStream},
+    sync::mpsc,
 };
 
 #[tokio::main]
@@ -19,46 +20,25 @@ async fn main() -> Result<()> {
 
     log::info!("Connecting to server...");
     // Establish network and stdin readers
-    let network_stream = TcpStream::connect(&address)
-        .await
-        .map_err(|e| {
-            log::error!("Client failed to connect to server at {}: {}", address, e);
-            e
-        })?;
-    let network_rdr = BufReader::new(network_stream);
-    let mut network_lines = network_rdr.lines();
+    let stream = TcpStream::connect(&address).await.map_err(|e| {
+        log::error!("Client failed to connect to server at {}: {}", address, e);
+        e
+    })?;
 
-    let terminal_in = io::stdin();
-    let terminal_rdr = BufReader::new(terminal_in);
-    let mut terminal_lines = terminal_rdr.lines();
+    // Split stream into separate reader and writer; we want independant mut refs to pass to separate tokio tasks
+    let (mut reader, mut write) = stream.into_split();
 
-    // loop over input Futures and handle accordingly
-    log::info!("Enterin client loop...");
-    loop {
-        tokio::select! {
-            stream_rx = network_lines.next_line() => {
-                // handle stream input
-                continue;
-            }
-            terminal_line = terminal_lines.next_line() => {
-                // handle terminal input
-                log::info!("Reading terminal input we hope");
-                match terminal_line {
-                    Ok(Some(terminal_line)) => {
-                        println!("User input: {}", terminal_line);
-                    }
-                    Ok(None) => {
-                        println!("no input, we done?");
-                        break;
-                    }
-                    Err(e) => {
-                        log::error!("Client error reading from stdin: {}", e);
-                        break
-                    }
-                }
-            }
-        }
-    }
+    // Create a mpsc channel to send stdin from the terminal task to server writer task
+
+    // Spawn tokio task to manage capturing terminal inputs
+
+    // Spawn tokio task to manage reading from server stream
+
+    // Spawn tokio task to manage writing to server stream
 
     Ok(())
+}
+
+async fn send_message(stream: &mut TcpListener, msg: MessageType) {
+    todo!();
 }
