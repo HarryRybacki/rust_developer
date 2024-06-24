@@ -11,14 +11,17 @@ This assignment takes your client-server chat application to the next level by r
         - Server 
             - DONE: 
                 - Establishes a listener
-            - NEXT: 
                 - Render messages coming in from client connection
                 - Loop on listener and spawn thread for each client connecting
+            - NEXT: 
+                - Refactor receiving messages from String to old Message Types
         - Client 
             - DONE:
-                - Connects to server and loops on printing output from the server as well as reacting to its stdin
+                - Connects to server 
+                - Starts three tasks for: handling stdin, handling strings from server, sending strings to server
+                - Stdin and send are stubbed; they work based on Strings.
             - NEXT: 
-                - Upon receving input from stdin, it should send it to the Server
+                - Refactor String messages to be old MessageTypes
 - [ ] Ensure all I/O operations, network communications, and other latency-sensitive tasks are handled using Tokio's asynchronous capabilities.
 
 ### Database Integration:
@@ -173,7 +176,7 @@ async fn main() {
         - 
         - Cancellation concerns
             - When one Future in the select! finshes and it's arm is executed, all other Futures are dropped silently. Cancellation safety means the Future can be resumed 
-            - To make things cancellation safe that are not inherintely, create the Future and `std::pin:p:pin` it OUTSIDE of the select! and then pass a mutable reference to the Future in the select
+            - To make things cancellation safe that are not inherintely, create the Future and `std::pin::pin` it OUTSIDE of the select! and then pass a mutable reference to the Future in the select
     -   
 1. Common Complications
     - tokio::spawn
