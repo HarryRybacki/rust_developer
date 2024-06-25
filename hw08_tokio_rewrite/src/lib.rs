@@ -5,23 +5,11 @@ use thiserror::Error;
 use tokio::net::TcpStream;
 
 /// Represents a Message consisteng of: Text, an Image, or a File.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum MessageType {
     Text(String),
     Image(Vec<u8>),
     File(String, Vec<u8>),
-}
-
-impl Clone for MessageType {
-    fn clone(&self) -> MessageType {
-        match self {
-            MessageType::Text(text) => MessageType::Text(text.clone()),
-            MessageType::Image(image) => MessageType::Image(image.clone()),
-            MessageType::File(filename, content) => {
-                MessageType::File(filename.clone(), content.clone())
-            }
-        }
-    }
 }
 
 #[derive(Error, Debug)]
