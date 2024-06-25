@@ -19,9 +19,10 @@ This assignment takes your client-server chat application to the next level by r
             - DONE:
                 - Connects to server 
                 - Starts three tasks for: handling stdin, handling strings from server, sending strings to server
-                - Stdin and send are stubbed; they work based on Strings.
-            - NEXT: 
+                - Stdin and send are stubbed; they work based on Strings
                 - Refactor String messages to be old MessageTypes
+            - NEXT: 
+                - Images and files may not be serializing correctly before sending, check this and pick up here. See the FIXMEs
 - [ ] Ensure all I/O operations, network communications, and other latency-sensitive tasks are handled using Tokio's asynchronous capabilities.
 
 ### Database Integration:

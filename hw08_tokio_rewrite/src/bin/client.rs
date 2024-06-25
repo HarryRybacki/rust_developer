@@ -1,7 +1,11 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use env_logger::{Builder, Env};
-use hw08_tokio_rewrite::{get_hostname, MessageType};
-use std::env;
+use hw08_tokio_rewrite::{generate_message, get_hostname, Command, MessageType};
+use std::{
+    env,
+    error::Error,
+    str::{Bytes, FromStr},
+};
 use tokio::{
     io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{
@@ -29,7 +33,9 @@ async fn main() -> Result<()> {
     })?;
 
     // Create a mpsc channel to send stdin from the terminal task to server writer task
-    let (tx, mut rx) = mpsc::channel::<String>(1024); // FIXME: wtf we have to specify the type? probs should be a &[u8] if anything
+    // FIXME: wtf we have to specify the type? probs should be a &[u8] if anything
+    //        Should not be String or MessageType probably... we're sending the 'serialized' version to the writer task
+    let (tx, mut rx) = mpsc::channel::<MessageType>(1024);
 
     // Spawn tokio task to manage capturing terminal inputs
     let tx_clone = tx.clone();
@@ -70,49 +76,92 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn process_stdin(tx: mpsc::Sender<String>) -> Result<()> {
+async fn process_stdin(tx: mpsc::Sender<MessageType>) -> Result<()> {
     log::info!("Starting process stdin consumer.");
     let stdin = tokio::io::stdin();
     let mut stdin_rdr = BufReader::new(stdin).lines();
 
     // Wait and process user input from stdin
+    client_usage();
     while let Some(line) = stdin_rdr.next_line().await.unwrap() {
-        // TODO: Plug in old MessageType creation code here.
-        if line.starts_with("send ") {
-            let message = line.strip_prefix("send ").unwrap().to_string();
-            println!("will send: {}", message);
-            if tx.send(message).await.is_err() {
-                eprintln!("Failed to send message to the writer task");
+        // Determine user intent
+        let trimmed_input = line.trim();
+        let parts: Vec<&str> = trimmed_input.splitn(2, ' ').collect();
+        let command = Command::from_str(parts[0])?;
+
+        // Handle requests to exit gracefully or display usage
+        match command {
+            Command::Quit => {
+                // FIXME: Impliment a cancellation mechanism for the client and plug in here
+                println!("quit...");
+                break;
             }
-        } else {
-            println!("Unknown command: {}", line);
+            Command::Help => {
+                println!("help...");
+                client_usage();
+            }
+            Command::File | Command::Image | Command::Text => {
+                let msg = generate_message(command, parts).await?;
+                tx.send(msg)
+                    .await
+                    .context("Failed to send message to the writer task")?;
+            }
         }
     }
 
     Ok(())
 }
+
 async fn process_server_rdr(mut stream: OwnedReadHalf) -> Result<()> {
     log::info!("Starting process server reader.");
 
     Ok(())
 }
 
+// FIXME: reciever should probably be a &[u8] as the stdin reader is sending
+//        the serialized message here, not the raw type.
 async fn process_server_wtr(
     mut stream: OwnedWriteHalf,
-    rx: &mut mpsc::Receiver<String>,
+    rx: &mut mpsc::Receiver<MessageType>,
 ) -> Result<()> {
     log::info!("Starting process server writer.");
 
     while let Some(message) = rx.recv().await {
-        println!("Should send '{}' to server...", &message);
-        stream.write_all(message.as_bytes()).await?;
+        println!("Should send '{}' to server...", "pew");
+        send_message(&mut stream, message).await?;
+        //stream.write_all(message.as_bytes()).await?;
     }
 
     Ok(())
 }
 
-/*
-async fn send_message(stream: &mut TcpListener, msg: MessageType) {
-    todo!();
+pub async fn send_message(stream: &mut OwnedWriteHalf, message: MessageType) -> Result<()> {
+    log::trace!("Entering common::send_message()");
+    // Serialize the message for tx
+    let serialized_msg = message.serialize_msg();
+
+    // Send length of serialized message (as 4-byte value)
+    let len = serialized_msg.len() as u32;
+    stream.write_all(&len.to_be_bytes()).await?;
+
+    // Send the serialized message
+    stream.write_all(serialized_msg.as_bytes()).await?;
+
+    log::trace!("Exiting send_message()\n sent: {}", &serialized_msg);
+    Ok(())
 }
-*/
+
+/// Displays Client usage helper text.
+fn client_usage() {
+    log::info!(
+        "
+------------------------------ \n\
+Message broadcast options: \n\
+\t- <message> \n\
+\t- .file <path> \n\
+\t- .image <path> \n\
+\t- .help \n\
+\t- .quit \n\
+------------------------------"
+    );
+}
