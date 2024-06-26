@@ -26,7 +26,11 @@ impl MessageType {
 
 impl std::fmt::Display for MessageType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "This is a MessageType: {} ", self)
+        match self {
+            MessageType::Text(text) => write!(f, "This is a Text MessageType: {} ", text),
+            MessageType::Image(_) => write!(f, "This an Image MessageType"),
+            MessageType::File(name, _) => write!(f, "This a File MessageType: {}", name),
+        }
     }
 }
 
