@@ -2,7 +2,11 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{error::Error, io};
 use thiserror::Error;
-use tokio::{self, net::TcpStream};
+use tokio::{
+    self,
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::tcp::{OwnedReadHalf, OwnedWriteHalf},
+};
 
 /// Represents a Message consisteng of: Text, an Image, or a File.
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -19,7 +23,7 @@ impl MessageType {
     }
 
     /// Retuns a MessageType from a deserialized Byte Array.
-    pub fn deseralize_msg(input: &[u8]) -> MessageType {
+    pub fn deseralize_msg(&self, input: &[u8]) -> MessageType {
         serde_json::from_slice(input).unwrap()
     }
 }
@@ -32,39 +36,6 @@ impl std::fmt::Display for MessageType {
             MessageType::File(name, _) => write!(f, "This a File MessageType: {}", name),
         }
     }
-}
-
-pub async fn generate_message(command: Command, parts: Vec<&str>) -> Result<MessageType> {
-    let msg = match command {
-        Command::File => {
-            let path_str = parts.get(1).context("Missing file path.")?;
-            let data = tokio::fs::read(path_str)
-                .await
-                .context("Failed to read file.")?;
-            let file_name = std::path::Path::new(path_str)
-                .file_name()
-                .and_then(|name| name.to_str())
-                .context("Failed to get file name")?;
-            log::info!("[SENDING FILE] {}", &file_name);
-            MessageType::File(String::from(file_name), data)
-        }
-        Command::Image => {
-            let path_str = parts.get(1).context("Missing image path.")?;
-            let data = tokio::fs::read(path_str)
-                .await
-                .context("Failed to read image.")?;
-            log::info!("[SENDING IMAGE] {}", &path_str);
-            MessageType::Image(data)
-        }
-        Command::Text => {
-            let message = parts.join(" ");
-            log::info!("[SENT] {}", &message);
-            MessageType::Text(message)
-        }
-        // FIXME: This should return an error, these Command types do not support conversion
-        Command::Help | Command::Quit => unreachable!(),
-    };
-    Ok(msg)
 }
 
 #[derive(Error, Debug)]
@@ -86,6 +57,42 @@ pub enum AppError {
 
     #[error("Unknown Error: {0}")]
     Unknown(String),
+}
+
+/// Sends a serialized MessageType to remote stream
+pub async fn send_message(stream: &mut OwnedWriteHalf, message: String) -> Result<()> {
+    log::trace!("Entering lib::send_message()");
+    // Send length of serialized message (as 4-byte value)
+    let len = message.len() as u32;
+    stream.write_all(&len.to_be_bytes()).await?;
+
+    // Send the serialized message
+    stream.write_all(message.as_bytes()).await?;
+
+    log::trace!("Exiting lib::send_message()\n sent: {}", &message);
+    Ok(())
+}
+
+/// Returns a MessageType from a deserialized Byte Array.
+async fn deserialize_msg(input: &[u8]) -> Result<MessageType, serde_json::Error> {
+    serde_json::from_slice(input)
+}
+
+/// Retrieves a message of length `msg_len` from a remote stream and attempts
+/// to construct and return a valid MessageType
+pub async fn recieve_message(stream: &mut OwnedReadHalf, msg_len: usize) -> Result<MessageType> {
+    let mut buffer = vec![0u8; msg_len];
+
+    stream
+        .read_exact(&mut buffer)
+        .await
+        .context("Failed to read stream");
+
+    // Deseralize message from buffer and return it
+    let msg = deserialize_msg(&buffer)
+        .await
+        .context("Failed to deserialze bytes into MessageType")?;
+    Ok(msg)
 }
 
 /// Generates a formatted String hostname by parsing the args.

@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use env_logger::{Builder, Env};
-use hw08_tokio_rewrite::get_hostname;
+use hw08_tokio_rewrite::{get_hostname, recieve_message, MessageType};
 use std::{env, net::SocketAddr};
 use tokio::{
     self,
@@ -54,29 +54,43 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+// FIXME: Should return a Result
 async fn process_client_rdr(mut stream: OwnedReadHalf, addr: SocketAddr) {
     log::info!("Starting to process client reader for {}", &addr);
-    let mut buffer = vec![0; 1024];
+    //let mut length_buffer = vec![0; 4];
+    let mut length_bytes = [0; 4];
 
     // Add client to DB
 
     loop {
-        match stream.read(&mut buffer).await {
-            Ok(0) => {
-                // Connection was closed
-                log::info!("Client {} disconnected", addr);
-                break;
-            }
-            Ok(n) => {
-                // Print received message
+        // TODO: read_exact is blocking IIRC, should this task calling this function be `is_blocking` or something?
+        match stream
+            .read_exact(&mut length_bytes)
+            .await
+            .context("Failed to read length")
+        {
+            Ok(_) => {
+                let msg_len = u32::from_be_bytes(length_bytes) as usize;
+
                 log::info!(
-                    "Received from {}: {}",
-                    addr,
-                    String::from_utf8_lossy(&buffer[..n])
+                    "Attempting to retrieve a {}-byte message from {}:",
+                    msg_len.to_string(),
+                    addr
                 );
+                let msg = recieve_message(&mut stream, msg_len)
+                    .await
+                    .context("Failed to read message")
+                    .unwrap(); // FIXME: Replace with Try operator
+                log::info!("{:?}", msg);
+                let test = process_message(msg)
+                    .await
+                    .context("Failed to process the incoming message...")
+                    .unwrap(); // FIXME: Replace with Try operator
+                               // TODO: do something with the message... like send it other clients or something
+                continue;
             }
             Err(e) => {
-                // Handle read error
+                // TODO: Handle the `early eof` errors caused by clients dropping
                 log::error!("Error reading from {}: {:?}", addr, e);
                 break;
             }
@@ -86,6 +100,11 @@ async fn process_client_rdr(mut stream: OwnedReadHalf, addr: SocketAddr) {
     // Drop client from DB
 }
 
+async fn process_message(msg: MessageType) -> Result<()> {
+    todo!();
+}
+
+// FIXME: Should return a Result
 async fn process_client_wtr(mut stream: OwnedWriteHalf, addr: SocketAddr) {
     log::info!("Starting to process client writer for {}", &addr);
 

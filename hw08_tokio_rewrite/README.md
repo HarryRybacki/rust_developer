@@ -13,16 +13,17 @@ This assignment takes your client-server chat application to the next level by r
                 - Establishes a listener
                 - Render messages coming in from client connection
                 - Loop on listener and spawn thread for each client connecting
+                - Receiving MessageTypes correctly
             - NEXT: 
-                - Refactor receiving messages from String to old Message Types
+                - Process MessageTypes based on their type after rececving
         - Client 
-            - DONE:
+            - DONE: 
                 - Connects to server 
                 - Starts three tasks for: handling stdin, handling strings from server, sending strings to server
                 - Stdin and send are stubbed; they work based on Strings
                 - Refactor String messages to be old MessageTypes
             - NEXT: 
-                - Images and files may not be serializing correctly before sending, check this and pick up here. See the FIXMEs
+                - Handle receiving MessageTypes from the server
 - [ ] Ensure all I/O operations, network communications, and other latency-sensitive tasks are handled using Tokio's asynchronous capabilities.
 
 ### Database Integration:
