@@ -1,19 +1,17 @@
 use anyhow::{Context, Result};
 use env_logger::{Builder, Env};
-use hw08_tokio_rewrite::{get_hostname, receive_msg, send_message, Command, MessageType};
-use std::{
-    env,
-    error::Error,
-    str::{Bytes, FromStr},
-};
+use hw08_tokio_rewrite::{get_hostname, receive_msg, Command, MessageType};
+use std::{env, str::FromStr};
 use tokio::{
-    io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     net::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
         TcpStream,
     },
+    select,
     sync::mpsc,
 };
+use tokio_util::sync;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -37,12 +35,24 @@ async fn main() -> Result<()> {
     //       Is there a better struct for this sort of 1:1 like a rendezvous or something?
     let (tx, mut rx) = mpsc::channel::<MessageType>(1024);
 
+    // Create and clone shutdown token to handle managing graceful shutdowns across tasks
+    let shutdown_token = sync::CancellationToken::new();
+    let stdin_shutdown = shutdown_token.clone();
+    let rdr_shutdown = shutdown_token.clone();
+    let wtr_shutdown = shutdown_token.clone();
+
     // Spawn tokio task to manage capturing terminal inputs
     let stdin_task = tokio::spawn(async move {
-        if let Err(e) = process_stdin(tx).await {
-            log::error!("Something went wrong handling client terminal reader process: {}\nShutting down...", e);
-            // TODO: Add cancellation signal to shutdown any open tasks.
-        };
+        // Wait for cancellation or handle stdin from user
+        select! {
+            _ = stdin_shutdown.cancelled() => log::debug!("Cancel signal initiated, stdin_task shutting down..."),
+            res = process_stdin(tx, stdin_shutdown.clone()) => {
+                match res {
+                    Ok(_) => log::debug!("stdin reader exiting task successfully.\nShutting down..."),
+                    Err(e) => log::error!("stdin reader encountered an error: {:?}\nShutting down...", e),
+                }
+            }
+        }
     });
 
     // Split stream into separate reader and writer; we want independant mut refs to pass to separate tokio tasks
@@ -50,24 +60,32 @@ async fn main() -> Result<()> {
 
     // Spawn tokio task to manage reading from server stream
     let rdr_task = tokio::spawn(async move {
-        if let Err(e) = process_server_rdr(reader).await {
-            log::error!(
-                "Something went wrong handling server writer process: {}\nShutting down...",
-                e
-            );
-            // TODO: Add cancellation signal to shutdown any open tasks.
-        };
+        // Wait for cancellation or handle stdin from user
+        select! {
+            _ = rdr_shutdown.cancelled() => log::debug!("Cancel signal initiated, stdin_task shutting down..."),
+            res = process_server_rdr(reader, rdr_shutdown.clone()) => {
+                match res {
+                    Ok(_) => log::debug!("Server reader exitign task successfully.\nShutting down..."),
+                    Err(e) => log::error!("Server reader encountered an error: {:?}\nShutting down...", e),
+                }
+            }
+        }
     });
 
     // Spawn tokio task to manage writing to server stream
     let wtr_task = tokio::spawn(async move {
-        if let Err(e) = process_server_wtr(writer, &mut rx).await {
-            log::error!(
-                "Something went wrong handling server writer process: {}\nShutting down...",
-                e
-            );
-            // TODO: Add cancellation signal to shutdown any open tasks.
-        };
+        select! {
+            _ = wtr_shutdown.cancelled() => {
+                log::debug!("Cancel signal initiated, stdin_task shutting down...");
+                // FIXME: Server shut be notified that client is about to disconnect
+            },
+            res = process_server_wtr(writer, &mut rx, wtr_shutdown.clone()) => {
+                match res {
+                    Ok(_) => log::debug!("Server reader exitign task successfully.\nShutting down..."),
+                    Err(e) => log::error!("Server writer encountered an error: {:?}\nShutting down...", e),
+                }
+            }
+        }
     });
 
     // TODO: Reflect, should this be as is or should I have a select! circling between them?
@@ -77,8 +95,11 @@ async fn main() -> Result<()> {
 }
 
 /// Manages user input
-async fn process_stdin(tx: mpsc::Sender<MessageType>) -> Result<()> {
-    log::info!("Starting process: stdin Consumer.");
+async fn process_stdin(
+    tx: mpsc::Sender<MessageType>,
+    shutdown: sync::CancellationToken,
+) -> Result<()> {
+    log::trace!("Starting process: stdin Consumer.");
     let stdin = tokio::io::stdin();
     let mut stdin_rdr = BufReader::new(stdin).lines();
 
@@ -97,8 +118,9 @@ async fn process_stdin(tx: mpsc::Sender<MessageType>) -> Result<()> {
         // Handle requests to exit gracefully or display usage
         match command {
             Command::Quit => {
-                // FIXME: Impliment a cancellation mechanism for the client and plug in here
-                todo!();
+                log::debug!("User requested quit. Client initiating shutdown..");
+                log::info!("Shutdown the client...");
+                shutdown.cancel();
                 break;
             }
             Command::Help => {
@@ -128,8 +150,11 @@ async fn process_stdin(tx: mpsc::Sender<MessageType>) -> Result<()> {
 }
 
 /// Manages incomming mesages from the server
-async fn process_server_rdr(mut stream: OwnedReadHalf) -> Result<()> {
-    log::info!("Starting process: Server Reader.");
+async fn process_server_rdr(
+    mut stream: OwnedReadHalf,
+    shutdown: sync::CancellationToken,
+) -> Result<()> {
+    log::trace!("Starting process: Server Reader.");
     let mut length_bytes = [0; 4];
 
     loop {
@@ -153,14 +178,13 @@ async fn process_server_rdr(mut stream: OwnedReadHalf) -> Result<()> {
                 match msg {
                     MessageType::File(name, data) => save_file(name, data).await?,
                     MessageType::Image(data) => save_image(data).await?,
-                    MessageType::Text(text) =>  log::info!("[RECEIVED] {}", text)
+                    MessageType::Text(text) => log::info!("[RECEIVED] {}", text),
                 }
-
-                // TOOD: Handle message based on its respective type
             }
             Err(e) => {
                 // TODO: Handle the `early eof` errors caused by clients dropping
                 log::error!("Error reading from server: {:?}", e);
+                let _ = shutdown.cancel();
                 break;
             }
         }
@@ -206,7 +230,6 @@ async fn save_file(file_name: String, data: Vec<u8>) -> Result<()> {
 ///
 /// Returns Result of Ok or Error.
 async fn save_image(data: Vec<u8>) -> Result<()> {
-
     let file_name = generate_file_name()
         .await
         .context("Failed to generate file name for image")?;
@@ -228,7 +251,6 @@ async fn save_image(data: Vec<u8>) -> Result<()> {
 ///
 /// Returns String or Error.
 async fn generate_file_name() -> Result<String> {
-
     let path = std::path::Path::new("./images");
     tokio::fs::create_dir_all(path)
         .await
@@ -243,16 +265,25 @@ async fn generate_file_name() -> Result<String> {
 async fn process_server_wtr(
     mut stream: OwnedWriteHalf,
     rx: &mut mpsc::Receiver<MessageType>,
+    shutdown: sync::CancellationToken,
 ) -> Result<()> {
-    log::info!("Starting process: Server Writer.");
+    log::trace!("Starting process: Server Writer.");
 
     // Wait for messages coming from stdin and process
-    while let Some(message) = rx.recv().await {
-        // Send message to server over TCP
-        message
-            .send(&mut stream)
-            .await
-            .context("Failed to send message over stream to server.")?;
+    loop {
+        tokio::select! {
+            Some(message) = rx.recv() => {
+                message
+                    .send(&mut stream)
+                    .await
+                    .context("Failed to send message over stream to server.")?;
+            }
+            _ = shutdown.cancelled() => {
+                log::debug!("Shutdown signal received in writer, exiting...");
+                // FIXME: Server shut be notifed we are disconnecting
+                break;
+            }
+        }
     }
 
     Ok(())

@@ -26,8 +26,9 @@ This assignment takes your client-server chat application to the next level by r
                 - Refactor String messages to be old MessageTypes
                 - Handle receiving MessageTypes from the server
                 - Process MessageTypes based on their type after rececving
-            - NEXT:
                 - Implement cancellation signal
+            - NEXT:
+                - Notify server when we know we are exiting
                 - Resolve remaining FIXME(s)
 - [ ] Ensure all I/O operations, network communications, and other latency-sensitive tasks are handled using Tokio's asynchronous capabilities.
 
