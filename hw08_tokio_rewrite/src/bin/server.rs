@@ -67,7 +67,6 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-// FIXME: Should return a Result
 async fn process_client_rdr(
     tx: &broadcast::Sender<(MessageType, SocketAddr)>,
     mut client_stream: OwnedReadHalf,
@@ -109,7 +108,8 @@ async fn process_client_rdr(
             }
             Err(e) => {
                 // TODO: Handle the `early eof` errors caused by clients dropping
-                log::error!("Error reading from {}: {:?}", addr, e);
+                log::error!("Error reading from {}: {:?}\nLikely a client disconnect. Dropping client.", addr, e);
+                // FIXME: Handle client disconnects.
                 break;
             }
         }
