@@ -6,7 +6,7 @@ This assignment takes your client-server chat application to the next level by r
 
 ### Asynchronous Rewriting Using Tokio:
 
-- [ ] Refactor both the client and server components of your application to work asynchronously, using Tokio as the foundation.
+- [X] Refactor both the client and server components of your application to work asynchronously, using Tokio as the foundation.
     - Where we are:
         - Server 
             - DONE: 
@@ -30,7 +30,7 @@ This assignment takes your client-server chat application to the next level by r
             - NEXT:
                 - Notify server when we know we are exiting
                 - Resolve remaining FIXME(s)
-- [ ] Ensure all I/O operations, network communications, and other latency-sensitive tasks are handled using Tokio's asynchronous capabilities.
+- [X] Ensure all I/O operations, network communications, and other latency-sensitive tasks are handled using Tokio's asynchronous capabilities.
 
 ### Database Integration:
 
