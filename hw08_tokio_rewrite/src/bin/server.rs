@@ -1,15 +1,15 @@
 use anyhow::{Context, Result};
 use env_logger::{Builder, Env};
 use hw08_tokio_rewrite::{get_hostname, receive_msg, MessageType};
-use std::{env, net::SocketAddr, ptr::addr_eq};
+use std::{env, net::SocketAddr};
 use tokio::{
     self,
-    io::{self, AsyncReadExt},
+    io::AsyncReadExt,
     net::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
         TcpListener,
     },
-    sync::{self, broadcast},
+    sync,
 };
 
 #[tokio::main]
@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
         .context("Failed to bind to socket.")?;
 
     // Create broadcast channel to share messages between client connections
-    let (br_send, _br_recv) = broadcast::channel(1024);
+    let (br_send, _br_recv) = sync::broadcast::channel(1024);
 
     // Initiate accept loop for server
     loop {
@@ -68,7 +68,7 @@ async fn main() -> Result<()> {
 }
 
 async fn process_client_rdr(
-    tx: &broadcast::Sender<(MessageType, SocketAddr)>,
+    tx: &sync::broadcast::Sender<(MessageType, SocketAddr)>,
     mut client_stream: OwnedReadHalf,
     addr: SocketAddr,
 ) -> Result<()> {
@@ -108,7 +108,11 @@ async fn process_client_rdr(
             }
             Err(e) => {
                 // TODO: Handle the `early eof` errors caused by clients dropping
-                log::error!("Error reading from {}: {:?}\nLikely a client disconnect. Dropping client.", addr, e);
+                log::error!(
+                    "Error reading from {}: {:?}\nLikely a client disconnect. Dropping client.",
+                    addr,
+                    e
+                );
                 // FIXME: Handle client disconnects.
                 break;
             }
@@ -124,7 +128,7 @@ async fn process_message(msg: MessageType) -> Result<()> {
 }
 
 async fn process_client_wtr(
-    mut rx: broadcast::Receiver<(MessageType, SocketAddr)>,
+    mut rx: sync::broadcast::Receiver<(MessageType, SocketAddr)>,
     stream: &mut OwnedWriteHalf,
     addr: SocketAddr,
 ) -> Result<()> {
