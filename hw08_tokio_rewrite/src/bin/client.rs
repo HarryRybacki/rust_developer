@@ -104,7 +104,18 @@ async fn process_stdin(tx: mpsc::Sender<MessageType>) -> Result<()> {
             Command::Help => {
                 client_usage();
             }
-            Command::File | Command::Image | Command::Text => {
+            Command::Text => {
+                if parts[0].is_empty() {
+                    log::debug!("User attempting to send an empty String. Ignoring...");
+                    continue;
+                } else {
+                    let msg = generate_message(command, parts).await?;
+                    tx.send(msg)
+                        .await
+                        .context("Failed to send message to the writer task")?;
+                }
+            }
+            Command::File | Command::Image => {
                 let msg = generate_message(command, parts).await?;
                 tx.send(msg)
                     .await
