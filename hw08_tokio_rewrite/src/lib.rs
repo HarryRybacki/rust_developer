@@ -39,7 +39,7 @@ impl MessageType {
 
         // Send the serialized message
         stream.write_all(serialized.as_bytes()).await?;
-        log::debug!("Succesfully sent message.");
+        log::info!("[SENT] {}", self.to_string());
 
         log::trace!("Exiting MessageType::send()");
 
@@ -78,9 +78,9 @@ impl MessageType {
 impl std::fmt::Display for MessageType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            MessageType::Text(text) => write!(f, "This is a Text MessageType: {} ", text),
-            MessageType::Image(_) => write!(f, "This an Image MessageType"),
-            MessageType::File(name, _) => write!(f, "This a File MessageType: {}", name),
+            MessageType::Text(text) => write!(f, "{} ", text),
+            MessageType::Image(_) => write!(f, "<MessageType::Image>"),
+            MessageType::File(name, _) => write!(f, "<MessageType::File>: {}", name),
         }
     }
 }

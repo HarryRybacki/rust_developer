@@ -88,7 +88,7 @@ async fn process_client_rdr(
             Ok(_) => {
                 let msg_len = u32::from_be_bytes(length_bytes) as usize;
 
-                log::info!(
+                log::debug!(
                     "Attempting to retrieve a {}-byte message from {}:",
                     msg_len.to_string(),
                     addr
@@ -96,7 +96,7 @@ async fn process_client_rdr(
                 let msg = receive_msg(&mut client_stream, msg_len)
                     .await
                     .context("Failed to read message")?;
-                log::info!("{:?}", msg);
+                //log::debug!("{:?}", msg);
 
                 // "Wake up" the the writer task and have it handle messaging the clients
                 if tx.send((msg.clone(), addr)).is_err() {
@@ -123,7 +123,6 @@ async fn process_message(msg: MessageType) -> Result<()> {
     todo!();
 }
 
-// FIXME: Should return a Result
 async fn process_client_wtr(
     mut rx: broadcast::Receiver<(MessageType, SocketAddr)>,
     stream: &mut OwnedWriteHalf,
