@@ -78,7 +78,7 @@ async fn main() -> Result<()> {
 
 /// Manages user input
 async fn process_stdin(tx: mpsc::Sender<MessageType>) -> Result<()> {
-    log::info!("Starting process stdin consumer.");
+    log::info!("Starting process: stdin Consumer.");
     let stdin = tokio::io::stdin();
     let mut stdin_rdr = BufReader::new(stdin).lines();
 
@@ -130,14 +130,20 @@ async fn process_server_rdr(mut stream: OwnedReadHalf) -> Result<()> {
             Ok(_) => {
                 let msg_len = u32::from_be_bytes(length_bytes) as usize;
 
-                log::info!(
+                log::debug!(
                     "Attempting to retreive a {}-byte message from the server.",
                     msg_len.to_string()
                 );
                 let msg = receive_msg(&mut stream, msg_len)
                     .await
                     .context("Failed to read message")?;
-                log::info!("{:?}", msg);
+                log::debug!("{:?}", msg);
+
+                match msg {
+                    MessageType::File(name, data) => save_file(name, data).await?,
+                    MessageType::Image(data) => save_image(data).await?,
+                    MessageType::Text(text) =>  log::info!("[RECEIVED] {}", text)
+                }
 
                 // TOOD: Handle message based on its respective type
             }
@@ -152,20 +158,90 @@ async fn process_server_rdr(mut stream: OwnedReadHalf) -> Result<()> {
     Ok(())
 }
 
+/// Saves a byte array as a file locally.
+///
+/// Assumes filename includes extension and storing in `./files/` dir.
+///
+/// Returns Result of Ok or Error.
+async fn save_file(file_name: String, data: Vec<u8>) -> Result<()> {
+    // Attempt to create the path
+    let path = std::path::Path::new("./files");
+    tokio::fs::create_dir_all(path)
+        .await
+        .context("Failed to create directory.")?;
+
+    // Create and save the file
+    let file_path = path.join(file_name);
+    let file_path_str = file_path
+        .to_str()
+        .context("Failed to convert file path to string")?;
+
+    let mut file = tokio::fs::File::create(&file_path)
+        .await
+        .with_context(|| format!("Failed to create file: {}", &file_path_str))?;
+
+    file.write_all(&data)
+        .await
+        .context("Failed to write file to local storage.")?;
+
+    log::info!("[RECEIVED FILE] Saving to..: {}", file_path_str);
+
+    Ok(())
+}
+
+/// Saves a byte array as an image locally.
+///
+/// Assumes filetype is `.png` and storing in `./images/` dir.
+///
+/// Returns Result of Ok or Error.
+async fn save_image(data: Vec<u8>) -> Result<()> {
+
+    let file_name = generate_file_name()
+        .await
+        .context("Failed to generate file name for image")?;
+
+    let mut file = tokio::fs::File::create(&file_name)
+        .await
+        .with_context(|| format!("Failed to open file: {}", &file_name))?;
+    file.write_all(&data)
+        .await
+        .context("Failed to write image to local disk.")?;
+    log::info!("[RECEIVED IMAGE] Saving to..: {}", file_name);
+
+    Ok(())
+}
+
+/// Creates String representing a file's name based on the current datetime.
+///
+/// Assumes filetype is `.png` and storing in `./images/` dir.
+///
+/// Returns String or Error.
+async fn generate_file_name() -> Result<String> {
+
+    let path = std::path::Path::new("./images");
+    tokio::fs::create_dir_all(path)
+        .await
+        .context("Failed to create directory")?;
+
+    let now = chrono::Local::now();
+
+    Ok(format!("./images/{}.png", now.format("%Y%m%d%H%M%S")))
+}
+
 /// Manages sending messages to the server
 async fn process_server_wtr(
     mut stream: OwnedWriteHalf,
     rx: &mut mpsc::Receiver<MessageType>,
 ) -> Result<()> {
-    log::info!("Starting process server writer.");
+    log::info!("Starting process: Server Writer.");
 
+    // Wait for messages coming from stdin and process
     while let Some(message) = rx.recv().await {
-        log::info!("Sending new message to server");
+        // Send message to server over TCP
         message
             .send(&mut stream)
             .await
             .context("Failed to send message over stream to server.")?;
-        //send_message(&mut stream, message).await?;
     }
 
     Ok(())
@@ -198,7 +274,7 @@ async fn generate_message(command: Command, parts: Vec<&str>) -> Result<MessageT
                 .file_name()
                 .and_then(|name| name.to_str())
                 .context("Failed to get file name")?;
-            log::info!("[SENDING FILE] {}", &file_name);
+            log::debug!("[GENERATING MessageType::File] from {}", &file_name);
             MessageType::File(String::from(file_name), data)
         }
         Command::Image => {
@@ -206,12 +282,12 @@ async fn generate_message(command: Command, parts: Vec<&str>) -> Result<MessageT
             let data = tokio::fs::read(path_str)
                 .await
                 .context("Failed to read image.")?;
-            log::info!("[SENDING IMAGE] {}", &path_str);
+            log::debug!("[GENERATING MessageType::Image] from {}", &path_str);
             MessageType::Image(data)
         }
         Command::Text => {
             let message = parts.join(" ");
-            log::info!("[SENT] {}", &message);
+            log::debug!("[GENERATING MessageType::Text] {}", &message);
             MessageType::Text(message)
         }
         // FIXME: This should return an error, these Command types do not support conversion

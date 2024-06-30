@@ -16,7 +16,8 @@ This assignment takes your client-server chat application to the next level by r
                 - Receiving MessageTypes correctly
                 - Broadcasts messages received back out to clients other than the original sender
             - NEXT: 
-                - 
+                - Implement cancellation signal
+                - Resolve remaining FIXME(s)
         - Client 
             - DONE: 
                 - Connects to server 
@@ -24,9 +25,10 @@ This assignment takes your client-server chat application to the next level by r
                 - Stdin and send are stubbed; they work based on Strings
                 - Refactor String messages to be old MessageTypes
                 - Handle receiving MessageTypes from the server
-            - NEXT:
                 - Process MessageTypes based on their type after rececving
-                - 
+            - NEXT:
+                - Implement cancellation signal
+                - Resolve remaining FIXME(s)
 - [ ] Ensure all I/O operations, network communications, and other latency-sensitive tasks are handled using Tokio's asynchronous capabilities.
 
 ### Database Integration:
