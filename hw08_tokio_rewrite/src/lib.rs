@@ -26,6 +26,53 @@ impl MessageType {
     pub fn deseralize_msg(&self, input: &[u8]) -> MessageType {
         serde_json::from_slice(input).unwrap()
     }
+
+    pub async fn send<T: AsyncWriteExt + Unpin>(&self, stream: &mut T) -> Result<()> {
+        log::trace!("Entering MessageType::send()");
+
+        // Serialize the msssage before transmitting
+        let serialized = self.serialize_msg();
+
+        // Send length of serialized message (as 4-byte value)
+        let len = serialized.len() as u32;
+        stream.write_all(&len.to_be_bytes()).await?;
+
+        // Send the serialized message
+        stream.write_all(serialized.as_bytes()).await?;
+        log::debug!("Succesfully sent message.");
+
+        log::trace!("Exiting MessageType::send()");
+
+        Ok(())
+    }
+
+    pub async fn recv<T: AsyncReadExt + Unpin>(stream: &mut T) -> Result<Self> {
+        log::trace!("Entering MessageType::recv()");
+
+        let mut length_bytes = [0; 4];
+
+        // Determine the length, in bytes, of the incomming message
+        let msg_len = stream
+            .read_exact(&mut length_bytes)
+            .await
+            .context("Failed to read msg length.")?;
+        let mut buffer = vec![0u8; msg_len];
+
+        // Read the incomming message from the stream buffer
+        stream
+            .read_exact(&mut buffer)
+            .await
+            .context("Failed to read stream")?;
+
+        // Deseralize message from buffer and return it
+        let msg = deserialize_msg(&buffer)
+            .await
+            .context("Failed to deserialze bytes into MessageType")?;
+        log::debug!("Succesfully received message.");
+
+        log::trace!("Exiting MessageType::recv()");
+        Ok(msg)
+    }
 }
 
 impl std::fmt::Display for MessageType {
@@ -80,7 +127,7 @@ async fn deserialize_msg(input: &[u8]) -> Result<MessageType, serde_json::Error>
 
 /// Retrieves a message of length `msg_len` from a remote stream and attempts
 /// to construct and return a valid MessageType
-pub async fn recieve_message(stream: &mut OwnedReadHalf, msg_len: usize) -> Result<MessageType> {
+pub async fn receive_msg(stream: &mut OwnedReadHalf, msg_len: usize) -> Result<MessageType> {
     let mut buffer = vec![0u8; msg_len];
 
     stream

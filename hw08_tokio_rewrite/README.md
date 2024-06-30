@@ -14,8 +14,9 @@ This assignment takes your client-server chat application to the next level by r
                 - Render messages coming in from client connection
                 - Loop on listener and spawn thread for each client connecting
                 - Receiving MessageTypes correctly
+                - Broadcasts messages received back out to clients other than the original sender
             - NEXT: 
-                - Process MessageTypes based on their type after rececving
+                - 
         - Client 
             - DONE: 
                 - Connects to server 
@@ -24,6 +25,7 @@ This assignment takes your client-server chat application to the next level by r
                 - Refactor String messages to be old MessageTypes
             - NEXT: 
                 - Handle receiving MessageTypes from the server
+                - Process MessageTypes based on their type after rececving
 - [ ] Ensure all I/O operations, network communications, and other latency-sensitive tasks are handled using Tokio's asynchronous capabilities.
 
 ### Database Integration:
