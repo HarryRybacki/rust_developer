@@ -1,13 +1,13 @@
 use anyhow::{Context, Result};
 use env_logger::{Builder, Env};
-use hw08_tokio_rewrite::{get_hostname, send_message, Command, MessageType};
+use hw08_tokio_rewrite::{get_hostname, receive_msg, send_message, Command, MessageType};
 use std::{
     env,
     error::Error,
     str::{Bytes, FromStr},
 };
 use tokio::{
-    io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     net::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
         TcpStream,
@@ -33,12 +33,13 @@ async fn main() -> Result<()> {
     })?;
 
     // Create a mpsc channel to send stdin from the terminal task to server writer task
-    let (tx, mut rx) = mpsc::channel::<String>(1024);
+    // NOTE: No need to clone the Sender as there will only ever be one (the client reader)
+    //       Is there a better struct for this sort of 1:1 like a rendezvous or something?
+    let (tx, mut rx) = mpsc::channel::<MessageType>(1024);
 
     // Spawn tokio task to manage capturing terminal inputs
-    let tx_clone = tx.clone();
     let stdin_task = tokio::spawn(async move {
-        if let Err(e) = process_stdin(tx_clone).await {
+        if let Err(e) = process_stdin(tx).await {
             log::error!("Something went wrong handling client terminal reader process: {}\nShutting down...", e);
             // TODO: Add cancellation signal to shutdown any open tasks.
         };
@@ -76,7 +77,7 @@ async fn main() -> Result<()> {
 }
 
 /// Manages user input
-async fn process_stdin(tx: mpsc::Sender<String>) -> Result<()> {
+async fn process_stdin(tx: mpsc::Sender<MessageType>) -> Result<()> {
     log::info!("Starting process stdin consumer.");
     let stdin = tokio::io::stdin();
     let mut stdin_rdr = BufReader::new(stdin).lines();
@@ -105,7 +106,7 @@ async fn process_stdin(tx: mpsc::Sender<String>) -> Result<()> {
             }
             Command::File | Command::Image | Command::Text => {
                 let msg = generate_message(command, parts).await?;
-                tx.send(msg.serialize_msg())
+                tx.send(msg)
                     .await
                     .context("Failed to send message to the writer task")?;
             }
@@ -117,7 +118,36 @@ async fn process_stdin(tx: mpsc::Sender<String>) -> Result<()> {
 
 /// Manages incomming mesages from the server
 async fn process_server_rdr(mut stream: OwnedReadHalf) -> Result<()> {
-    log::info!("Starting process server reader.");
+    log::info!("Starting process: Server Reader.");
+    let mut length_bytes = [0; 4];
+
+    loop {
+        match stream
+            .read_exact(&mut length_bytes)
+            .await
+            .context("Failed to read length")
+        {
+            Ok(_) => {
+                let msg_len = u32::from_be_bytes(length_bytes) as usize;
+
+                log::info!(
+                    "Attempting to retreive a {}-byte message from the server.",
+                    msg_len.to_string()
+                );
+                let msg = receive_msg(&mut stream, msg_len)
+                    .await
+                    .context("Failed to read message")?;
+                log::info!("{:?}", msg);
+
+                // TOOD: Handle message based on its respective type
+            }
+            Err(e) => {
+                // TODO: Handle the `early eof` errors caused by clients dropping
+                log::error!("Error reading from server: {:?}", e);
+                break;
+            }
+        }
+    }
 
     Ok(())
 }
@@ -125,13 +155,17 @@ async fn process_server_rdr(mut stream: OwnedReadHalf) -> Result<()> {
 /// Manages sending messages to the server
 async fn process_server_wtr(
     mut stream: OwnedWriteHalf,
-    rx: &mut mpsc::Receiver<String>,
+    rx: &mut mpsc::Receiver<MessageType>,
 ) -> Result<()> {
     log::info!("Starting process server writer.");
 
     while let Some(message) = rx.recv().await {
         log::info!("Sending new message to server");
-        send_message(&mut stream, message).await?;
+        message
+            .send(&mut stream)
+            .await
+            .context("Failed to send message over stream to server.")?;
+        //send_message(&mut stream, message).await?;
     }
 
     Ok(())

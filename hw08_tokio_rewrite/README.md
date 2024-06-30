@@ -23,9 +23,10 @@ This assignment takes your client-server chat application to the next level by r
                 - Starts three tasks for: handling stdin, handling strings from server, sending strings to server
                 - Stdin and send are stubbed; they work based on Strings
                 - Refactor String messages to be old MessageTypes
-            - NEXT: 
                 - Handle receiving MessageTypes from the server
+            - NEXT:
                 - Process MessageTypes based on their type after rececving
+                - 
 - [ ] Ensure all I/O operations, network communications, and other latency-sensitive tasks are handled using Tokio's asynchronous capabilities.
 
 ### Database Integration:
