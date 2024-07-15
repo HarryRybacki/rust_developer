@@ -1,12 +1,20 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{error::Error, io};
+use sqlx::FromRow;
 use thiserror::Error;
 use tokio::{
     self,
     io::{AsyncReadExt, AsyncWriteExt},
     net::tcp::{OwnedReadHalf, OwnedWriteHalf},
 };
+
+/// Represents a User
+#[derive(Clone, Debug, FromRow)]
+pub struct User {
+    id: i64,
+    name: String,
+}
 
 /// Represents a Message consisteng of: Text, an Image, or a File.
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -133,7 +141,7 @@ pub async fn receive_msg(stream: &mut OwnedReadHalf, msg_len: usize) -> Result<M
     stream
         .read_exact(&mut buffer)
         .await
-        .context("Failed to read stream");
+        .context("Failed to read stream")?;
 
     // Deseralize message from buffer and return it
     let msg = deserialize_msg(&buffer)
