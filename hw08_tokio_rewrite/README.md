@@ -27,14 +27,14 @@ This assignment takes your client-server chat application to the next level by r
                 - Handle receiving MessageTypes from the server
                 - Process MessageTypes based on their type after rececving
                 - Implement cancellation signal
-            - NEXT:
                 - Notify server when we know we are exiting
+            - NEXT:
                 - Resolve remaining FIXME(s)
 - [X] Ensure all I/O operations, network communications, and other latency-sensitive tasks are handled using Tokio's asynchronous capabilities.
 
 ### Database Integration:
 
-- [ ] Choose a database framework like sqlx, diesel, or any other of your preference to integrate into the server for data persistence.
+- [X] Choose a database framework like **sqlx**, diesel, or any other of your preference to integrate into the server for data persistence.
 - [ ] Design the database to store chat messages and user data effectively.
 
 ### User Identification:
@@ -64,7 +64,7 @@ n/a
 ### Reflections for Lukáš and self:
 
 #### Async
-1. Futures are leverage userspace threads
+1. Futures leverage userspace threads
 1. Async fns can be thought to run in zero to n 'chunks' where n is the number of .await(s)
 1. .await(s) are called on a Future(s) within an async fn blocks. They yield execution of that function back up the stack, allowing the Executor to let other Futures progress. The original await() call will periodically check (bts) if the Future is complete. If at that time the future is complete, the async function block continues executing.
 ```rust
@@ -161,9 +161,6 @@ async fn main() {
 
 }
 ```
-    - tokio::stream
-        - 
-
 
 1. Utilities
     - tokio::sync 
@@ -173,15 +170,12 @@ async fn main() {
         - broadcast::channel -- one tx, many rx but ensures everyone can get the rx
         - sync::watch -- like a chafnnel but only sees the most recent updated 
         - sync::notify -- great for doing something when something else changes (good for killing via .quit?)
-    - tokio::task::joinset
-        - 
     - select! (think of racing Futures and doing something when one finishes)
         - Common examples
             - "Wait for tcp packet or user pres ctr-c"
             - "Wait for input on tcp channel or std in"
             - "Wait for new emssage on this channel or write to complete"
             - "Wait for input on this channel or this Notify to complete to cancel early"
-        - 
         - Cancellation concerns
             - When one Future in the select! finshes and it's arm is executed, all other Futures are dropped silently. Cancellation safety means the Future can be resumed 
             - To make things cancellation safe that are not inherintely, create the Future and `std::pin::pin` it OUTSIDE of the select! and then pass a mutable reference to the Future in the select
