@@ -172,9 +172,10 @@ pub fn get_hostname(args: Vec<String>) -> String {
 #[derive(Debug)]
 pub enum Command {
     File,
-    Image,
-    Text,
     Help,
+    Image,
+    Register,
+    Text,
     Quit,
 }
 
@@ -184,8 +185,9 @@ impl std::str::FromStr for Command {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             ".file" => Ok(Command::File),
-            ".image" => Ok(Command::Image),
             ".help" => Ok(Command::Help),
+            ".image" => Ok(Command::Image),
+            ".register" => Ok(Command::Register),
             ".quit" => Ok(Command::Quit),
             _ => Ok(Command::Text),
         }

@@ -77,7 +77,7 @@ async fn main() -> Result<()> {
         select! {
             _ = wtr_shutdown.cancelled() => {
                 log::debug!("Cancel signal initiated, stdin_task shutting down...");
-                // FIXME: Server shut be notified that client is about to disconnect
+                // FIXME: Server shut be notifed client is disconnecting
             },
             res = process_server_wtr(writer, &mut rx, wtr_shutdown.clone()) => {
                 match res {
@@ -182,7 +182,6 @@ async fn process_server_rdr(
                 }
             }
             Err(e) => {
-                // TODO: Handle the `early eof` errors caused by clients dropping
                 log::error!("Error reading from server: {:?}", e);
                 let _ = shutdown.cancel();
                 break;
@@ -280,7 +279,7 @@ async fn process_server_wtr(
             }
             _ = shutdown.cancelled() => {
                 log::debug!("Shutdown signal received in writer, exiting...");
-                // FIXME: Server shut be notifed we are disconnecting
+                // FIXME: Server shut be notifed client is disconnecting
                 break;
             }
         }
@@ -298,6 +297,7 @@ Message broadcast options: \n\
 \t- <message> \n\
 \t- .file <path> \n\
 \t- .image <path> \n\
+\t- .register <account name> \n\
 \t- .help \n\
 \t- .quit \n\
 ------------------------------"
@@ -318,6 +318,9 @@ async fn generate_message(command: Command, parts: Vec<&str>) -> Result<MessageT
                 .context("Failed to get file name")?;
             log::debug!("[GENERATING MessageType::File] from {}", &file_name);
             MessageType::File(String::from(file_name), data)
+        }
+        Command::Register => {
+            todo!();
         }
         Command::Image => {
             let path_str = parts.get(1).context("Missing image path.")?;
