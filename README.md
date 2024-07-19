@@ -10,4 +10,5 @@ This is the landing page for my homework submissions to the Rust Developer cours
 4. [Multi-threaded CLI](https://github.com/HarryRybacki/rust_developer/tree/main/hw04_multithreaded_cli)
 5. [Basic Client-Server Messaging App](https://github.com/HarryRybacki/rust_developer/tree/main/hw05_client_server_msger)
 6. [Improved Client-Server Messaging App](https://github.com/HarryRybacki/rust_developer/tree/main/hw06_professionalize_client_server_app)
-7. TBD
+7. [Improved Error Handling](https://github.com/HarryRybacki/rust_developer/tree/main/hw07_improve_error_handling)
+8. [Async (Tokio) with local storage and user identification](https://github.com/HarryRybacki/rust_developer/tree/main/hw08_tokio_rewrite)
