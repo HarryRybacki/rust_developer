@@ -1,5 +1,106 @@
 # [Homework 8](https://robot-dreams-rust.mag.wiki/13-error-handling-custom-types/index.html#homework)
 
+## Server and Client Usage:
+
+### Server
+
+> [!WARNING]
+> Ensure you have sqlite installed on your local machine. It is required by the server.
+
+Launching the server is quite simple, from the packages root directory: 
+    
+    `RUST_LOG=<log level> cargo run --bin server <listening ip> <listening port>`
+e.g.
+    `RUST_LOG=debug cargo run --bin server 127.0.0.1 8080`
+
+### Client
+Launching the client is just as simple:
+    `cargo run --bin client <server ip> <server port>`
+e.g.
+    `cargo run --bin client 127.0.0.1 8080`
+
+For client usage, invoke `.usage` after launching.
+
+### Questions:
+n/a
+
+### Class Notes:
+n/a
+
+### Reflections for Lukáš and self:
+
+#### Async-Re-write
+**This re-write took a lot longer anticipated.**
+
+Understanding the flow of asynchronous programming was one hurdle. After attempting to refactor my application twice, I ended up opting for a full re-write (leveraging 
+old code where it made sense to.)
+
+The Server and Client both ended up in their own binary files. 
+
+The Server loops over new client connections. For each new connection it:
+- Creates a channel to communicate between the Tasks handling the client read/write connections
+- Creates a channel for passing updated user ids when a client opts to register themselves
+- Spawns a Task for reading from and a Task for witing to the client connection.
+
+The Client spawns three Tasks:
+- One to listening and handling input from stdin
+- One for writing to the server's stream
+- And one for handling incoming messages from the server's stream
+Additionally, the client leverages a CancellationToken for gracefully shutting down each task if the user
+decides it's time to `.quit` or if the server drops unexpectedly for some reason.
+
+#### Database Additions
+The database addition is pretty simple. 
+
+I leveraged sqlite with two tables, one for messages and another for users. They are linked to one another via the user_id. Message text is stored, as are filenames for files. Images merely not that the associated user sent an image.
+
+The migrations seem to work for you, but not for me. To resolve this, I have the setup_db function manually creating the table (assuming the migration didn't work).
+
+#### Security Considerations and Users
+Due to the time constraints, I did not implement a proper user authentication model (or, unfortunatly, get a chance to explore crates that would have helped out here). 
+
+To that end, this is now an 'anonymous chat client with an opt-in self-identification system.' What does that mean?
+
+By default, all users are expected to be anonymous. If they wish, they can identify themselves with a chosen handle. All messages they send will be associated with that handle. All messages not associated with a handle will be associated with the 'first' anonymous user.
+
+Can users pretend to be other users by assuming their handles? Absolutely! It's up to the user to verify the sender by some other means external to this system ;) 
+
+### Questions:
+n/a
+
+### Class Notes:
+n/a
+
+### Reflections for Lukáš and self:
+
+#### Async-Re-write
+**This re-write took a lot longer anticipated.**
+
+Understanding the flow of asynchronous programming was one hurdle. After attempting to refactor my application twice, I ended up opting for a full re-write (leveraging 
+old code where it made sense to.)
+
+The Server and Client both ended up in their own binary files. 
+
+The Server loops over new client connections. For each new connection it:
+- Creates a channel to communicate between the Tasks handling the client read/write connections
+- Creates a channel for passing updated user ids when a client opts to register themselves
+- Spawns a Task for reading from and a Task for witing to the client connection.
+
+The Client spawns three Tasks:
+- One to listening and handling input from stdin
+- One for writing to the server's stream
+- And one for handling incoming messages from the server's stream
+Additionally, the client leverages a CancellationToken for gracefully shutting down each task if the user
+decides it's time to `.quit` or if the server drops unexpectedly for some reason.
+
+#### Database addition
+The database addition is pretty simple. 
+
+I leveraged sqlite with two tables, one for messages and another for users. They are linked to one another via the user_id.
+
+The migrations seem to work for you, but not for me. To resolve this, I have the setup_db function manually creating the table (assuming the migration didn't work).
+ouys 
+
 ## Description:
 
 This assignment takes your client-server chat application to the next level by rewriting it to use the asynchronous paradigm with Tokio. Additionally, you'll start integrating a database to store chat and user data, marking a significant advancement in your application's complexity and functionality.
@@ -16,7 +117,6 @@ This assignment takes your client-server chat application to the next level by r
                 - Receiving MessageTypes correctly
                 - Broadcasts messages received back out to clients other than the original sender
             - NEXT: 
-                - Implement cancellation signal
                 - Resolve remaining FIXME(s)
         - Client 
             - DONE: 
@@ -35,35 +135,31 @@ This assignment takes your client-server chat application to the next level by r
 ### Database Integration:
 
 - [X] Choose a database framework like **sqlx**, diesel, or any other of your preference to integrate into the server for data persistence.
-- [ ] Design the database to store chat messages and user data effectively.
+
+PICK UP HERE -- NEXT STEP IS TO LET A CLIENT REGISTER ITSELF WITH THE SERVER -- ADD A REGISTER COMMAND?
+
+- [X] Design the database to store chat messages and user data effectively.
 
 ### User Identification:
-- [ ] Implement a mechanism for clients to identify themselves to the server. This can range from a simple identifier to a more secure authentication process, depending on your preference and the complexity you wish to introduce.
-- [ ] Ensure that the identification process is seamlessly integrated into the asynchronous workflow of the client-server communication.
+- [X] Implement a mechanism for clients to identify themselves to the server. This can range from a simple identifier to a more secure authentication process, depending on your preference and the complexity you wish to introduce.
+- [X] Ensure that the identification process is seamlessly integrated into the asynchronous workflow of the client-server communication.
 
 ### Security Considerations:
-- [ ] While focusing on the asynchronous model and database integration, keep in mind basic security practices for user identification and data storage.
-- [ ] Decide on the level of security you want to implement at this stage and ensure it is appropriately documented.
+- [X] While focusing on the asynchronous model and database integration, keep in mind basic security practices for user identification and data storage.
+- [X] Decide on the level of security you want to implement at this stage and ensure it is appropriately documented.
 
 ### Refactoring for Asynchronous and Database Functionality:
 
-- [ ] Thoroughly test all functionalities to ensure they work as expected in the new asynchronous setup.
-- [ ] Ensure the server's interactions with the database are efficient and error-handled correctly.
+- [X] Thoroughly test all functionalities to ensure they work as expected in the new asynchronous setup.
+- [X] Ensure the server's interactions with the database are efficient and error-handled correctly.
 
 ### Documentation and Comments:
 
-- [ ] Update your README.md to reflect the shift to asynchronous programming and the introduction of database functionality.
+- [X] Update your README.md to reflect the shift to asynchronous programming and the introduction of database functionality.
 Document how to set up and run the modified application, especially any new requirements for the database setup.
 
-### Questions:
-n/a
 
-### Class Notes:
-n/a
-
-### Reflections for Lukáš and self:
-
-#### Async
+### Async Notes
 1. Futures leverage userspace threads
 1. Async fns can be thought to run in zero to n 'chunks' where n is the number of .await(s)
 1. .await(s) are called on a Future(s) within an async fn blocks. They yield execution of that function back up the stack, allowing the Executor to let other Futures progress. The original await() call will periodically check (bts) if the Future is complete. If at that time the future is complete, the async function block continues executing.
@@ -82,6 +178,7 @@ async {
         }
     }
 }
+```
 1. Async is cooperative scheduling; if futures do not yield periodically things get fkd e.g.:
     - calling `std::fs::File` and `std::net::<stream>` (will simply block the thread)
    Equiv. async will yield allowing other async tasks to given cycles to progress.
@@ -89,7 +186,7 @@ async {
 1. Be careful with side-effects from Futures dropping when a select! exits early
 1. where select! is good for branching control flow across Futures based on which is ready first, "joins" are tell you to wait for all futures (depth) to complete before continuing
 
-#### Tokio
+### Tokio Notes
 1. Runtime `tokio::runtime` (calling and working with Futures)
     - Futures often contain Futures e.g. an async fn which contains an async fn which calls an async stream
       - Tokio is only aware of the top level Future tasks, not their inner Futures
