@@ -1,8 +1,9 @@
 use anyhow::{Context, Result};
+use chrono::Utc;
 use env_logger::{Builder, Env};
 use hw08_tokio_rewrite::{get_hostname, receive_msg, MessageType};
-use std::{env, net::SocketAddr};
 use sqlx::{migrate::MigrateDatabase, Pool, Row, Sqlite, SqlitePool};
+use std::{env, net::SocketAddr};
 use tokio::{
     self,
     io::AsyncReadExt,
@@ -10,11 +11,16 @@ use tokio::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
         TcpListener,
     },
-    sync,
+    sync::{self, mpsc},
 };
 
 // Using as lightweight a DB as possible
 const DB_URL: &str = "sqlite://sqlite.db";
+
+// Enum to represent messages, including user ID updates
+enum InternalMessage {
+    UserIdUpdate(i64),
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -25,6 +31,8 @@ async fn main() -> Result<()> {
     // Create sqlite DB if it's not already present
     let db = setup_db().await?;
 
+    // Determine the anonymous user's ID
+    let anon_user_id = get_or_create_anon_user_id(&db).await?;
 
     // Process parameters to determine hostname and whatnot for Server
     let args: Vec<String> = env::args().collect();
@@ -55,19 +63,30 @@ async fn main() -> Result<()> {
         let db_clone_rdr = db.clone();
         let db_clone_wtr = db.clone();
         // Split stream into separate reader and writer; we want independent mut refs to pass to separate tokio tasks
-        let (mut stream_rdr, mut stream_wtr) = stream.into_split();
+        let (stream_rdr, mut stream_wtr) = stream.into_split();
+
+        // Channel to handle internal messages
+        let (internal_tx, internal_rx) = mpsc::channel(32);
+        let internal_tx_rdr = internal_tx.clone();
 
         // Spawn tokio task to manage reading from the client
         tokio::spawn(async move {
-            process_client_rdr(&sender, stream_rdr, addr, &db_clone_rdr)
-                .await
-                .context("Server error handling the client reader")
-                .unwrap();
+            process_client_rdr(
+                &sender,
+                stream_rdr,
+                addr,
+                &db_clone_rdr,
+                internal_tx_rdr,
+                anon_user_id,
+            )
+            .await
+            .context("Server error handling the client reader")
+            .unwrap();
         });
 
         // Spawn tokio task to manage writing to the client
         tokio::spawn(async move {
-            process_client_wtr(receiver, &mut stream_wtr, addr, &db_clone_wtr)
+            process_client_wtr(receiver, &mut stream_wtr, addr, &db_clone_wtr, internal_rx)
                 .await
                 .context("Server error handling the client writer")
                 .unwrap();
@@ -82,11 +101,11 @@ async fn process_client_rdr(
     mut client_stream: OwnedReadHalf,
     addr: SocketAddr,
     db: &Pool<Sqlite>,
+    internal_tx: mpsc::Sender<InternalMessage>,
+    mut user_id: i64,
 ) -> Result<()> {
     log::trace!("Starting process: Client Reader for: {}", &addr);
     let mut length_bytes = [0; 4];
-
-    // TODO: Add client to DB
 
     loop {
         // TODO: read_exact is blocking IIRC, should this task calling this function be `is_blocking` or something?
@@ -99,13 +118,19 @@ async fn process_client_rdr(
                 let msg_len = u32::from_be_bytes(length_bytes) as usize;
 
                 log::debug!(
-                    "Attempting to retrieve a {}-byte message from {}:",
+                    "Attempting to retrieve a {}-byte message from {} at {}:",
                     msg_len.to_string(),
+                    user_id,
                     addr
                 );
                 let msg = receive_msg(&mut client_stream, msg_len)
                     .await
                     .context("Failed to read message")?;
+
+                // If msg type is a register, attempt to add the user to the DB
+                process_message(&msg, &mut user_id, db, &internal_tx)
+                    .await
+                    .context("Failed to process message")?;
 
                 // "Wake up" the the writer task and have it handle messaging the clients
                 if tx.send((msg.clone(), addr)).is_err() {
@@ -119,7 +144,8 @@ async fn process_client_rdr(
             Err(e) => {
                 // TODO: Handle the `early eof` errors caused by clients dropping
                 log::error!(
-                    "Error reading from {}: {:?}\nLikely a client disconnect. Dropping client.",
+                    "Error reading from user {} at {}: {:?}\nLikely a client disconnect. Dropping client.",
+                    user_id,
                     addr,
                     e
                 );
@@ -133,8 +159,32 @@ async fn process_client_rdr(
     Ok(())
 }
 
-async fn process_message(msg: MessageType) -> Result<()> {
-    todo!();
+/// Processes incoming messages and handles things like DB registrations as needed
+async fn process_message(
+    msg: &MessageType,
+    user_id: &mut i64,
+    db: &Pool<Sqlite>,
+    internal_tx: &mpsc::Sender<InternalMessage>,
+) -> Result<()> {
+    match msg {
+        MessageType::Register(account) => {
+            add_user_to_db(account, db)
+                .await
+                .context("Failed to register account and add to the user database")?;
+
+            // Retrieve the new user ID and update the user_id mutable reference
+            if let Some(new_user_id) = get_user_id_by_name(account, db).await? {
+                *user_id = new_user_id;
+                internal_tx
+                    .send(InternalMessage::UserIdUpdate(new_user_id))
+                    .await
+                    .unwrap();
+            }
+        }
+        _ => store_message_in_db(msg, *user_id, db).await?,
+    }
+
+    Ok(())
 }
 
 async fn process_client_wtr(
@@ -142,52 +192,69 @@ async fn process_client_wtr(
     stream: &mut OwnedWriteHalf,
     addr: SocketAddr,
     db: &Pool<Sqlite>,
+    mut internal_rx: mpsc::Receiver<InternalMessage>,
 ) -> Result<()> {
     log::trace!("Starting process: Client Writer for: {}", &addr);
 
-    while let Ok((msg, other_addr)) = rx.recv().await {
-        // If this is the task responsible for sending to the same client the msg came from, ignore
-        if other_addr == addr {
-            log::debug!(
-                "Will not broadcast message from: {} to {}. Same client.",
-                other_addr,
-                addr
-            );
-            continue;
-        }
+    // Store the current user ID
+    let mut user_id: i64 = 1;
 
-        // Otherwise send it to their resepctive TCP Stream
-        match msg.send(stream).await {
-            Ok(_) => {
-                log::debug!("Server successfully sent message to: {}", addr);
-            }
-            Err(e) => {
-                log::error!("Error sending msg to {} tcp stream: {:?}", &addr, e);
-                log::info!("Server killing client writer task for: {}", addr);
-                break;
+    loop {
+        tokio::select! {
+            // Handle broadcast messages
+            Ok((msg, other_addr)) = rx.recv() => {
+                // If this is the task responsible for sending to the same client the msg came from, ignore
+                if other_addr == addr {
+                    log::debug!(
+                        "Will not broadcast message from: {} to {}. Same client.",
+                        other_addr,
+                        addr
+                    );
+                    continue;
+                }
+
+                // Otherwise send it to their respective TCP Stream
+                match msg.send(stream).await {
+                    Ok(_) => {
+                        log::debug!("Server successfully sent message to: {} at {}", user_id, addr);
+                    }
+                    Err(e) => {
+                        log::error!("Error sending msg to {} tcp stream: {:?}", &addr, e);
+                        log::info!("Server killing client writer task for: {} at {}", user_id, addr);
+                        break;
+                    }
+                }
+            },
+            // Handle internal messages
+            Some(internal_msg) = internal_rx.recv() => {
+                match internal_msg {
+                    InternalMessage::UserIdUpdate(new_user_id) => {
+                        user_id = new_user_id;
+                        log::debug!("Updated user_id to: {}", user_id);
+                    },
+                }
             }
         }
-        continue;
     }
 
     Ok(())
 }
 
+/// Establishes the DB for server use
 async fn setup_db() -> Result<Pool<Sqlite>> {
-
     // Create DB if it doesn't already exist
     if !Sqlite::database_exists(DB_URL).await.unwrap_or(false) {
         log::trace!("Entering setup_db");
         match Sqlite::create_database(DB_URL).await {
             Ok(_) => {
                 log::info!("New sqlite DB established: {}", DB_URL);
-            },
+            }
             Err(error) => {
                 log::error!("Error creating new DB: {}", &error);
-                // TODO: How do we want to handle the error state?
-            },
+                // Handle the error state as needed
+            }
         }
-    } 
+    }
 
     // Establish connection to DB
     let db = SqlitePool::connect(DB_URL)
@@ -195,63 +262,120 @@ async fn setup_db() -> Result<Pool<Sqlite>> {
         .context("Failed to connect to SQLite DB")?;
 
     // Execute migrations
-    let crate_dir = std::env::var("CARGO_MANIFEST_DIR").context("Failed to determine CARGO_MANIFEST_DIR")?;
-    let migrations = std::path::Path::new(&crate_dir).join("./migrations");
-    match sqlx::migrate::Migrator::new(migrations)
-        .await
-        .unwrap()
-        .run(&db)
-        .await {
-            Ok(results) => log::info!("Migration success: {:?}", results),
-            Err(error) => {
-                // FIXME: Implement failure logic
-                log::error!("{:?}", error);
-                todo!();
+    let crate_dir =
+        std::env::var("CARGO_MANIFEST_DIR").context("Failed to determine CARGO_MANIFEST_DIR")?;
+    let migrations = std::path::Path::new(&crate_dir).join("migrations");
+    let migrator = sqlx::migrate::Migrator::new(migrations).await.unwrap();
+    match migrator.run(&db).await {
+        Ok(_) => log::info!("Migration success"),
+        Err(error) => {
+            log::error!("Migration error: {:?}", error);
+            return Err(error.into());
         }
     }
 
-    // START TESTING
-    let result = sqlx::query(
-        "SELECT name
-         FROM sqlite_schema
-         WHERE type ='table' 
-         AND name NOT LIKE 'sqlite_%';",
+    // FIXME: Figure out wtf the messages table isn't being migrated
+    // Manually create the messages table
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            content TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );",
     )
-        .fetch_all(&db)
-        .await
-        .unwrap();
-    for (idx, row) in result.iter().enumerate() {
-        log::info!("[{}]: {:?}", idx, row.get::<String, &str>("name"));
-    }
-    
-    // TODO: Turn into add_user fn
-    let result = sqlx::query("INSERT INTO users (name) VALUES (?)")
-        .bind("Tim Tom")
-        .execute(&db)
-        .await
-        .unwrap();
+    .execute(&db)
+    .await
+    .context("Failed to create messages table")?;
 
-    println!("Query result: {:?}", result);
-
-    // TOOD: Turn into get_users fn
-    let user_results = sqlx::query_as::<_, User>("SELECT id, name FROM users")
-        .fetch_all(&db)
-        .await
-        .unwrap();
-
-    for user in user_results {
-        println!("[{}] name: {}", user.id, &user.name);
-    }
-
-    // TODO: Turn into delete_use fn
-    let delete_result = sqlx::query("DELETE FROM users WHERE name=$1")
-        .bind("Tim Tom")
-        .execute(&db)
-        .await
-        .unwrap();
-    println!("Delete result: {:?}", delete_result);
-
-    // END TESTING
+    log::info!("Messages table created or already exists");
 
     Ok(db)
+}
+
+/// Adds a user to the database
+async fn add_user_to_db(account: &str, db: &Pool<Sqlite>) -> Result<()> {
+    // TODO: First check if user with the name exists, if so, return that user id
+    sqlx::query("INSERT INTO users (name) VALUES (?)")
+        .bind(account)
+        .execute(db)
+        .await
+        .context("Failed to insert user into the database")?;
+    log::debug!("User {} added to the database", account);
+
+    Ok(())
+}
+
+/// Adds a message to the database associated with a specific user_id
+async fn store_message_in_db(msg: &MessageType, user_id: i64, db: &Pool<Sqlite>) -> Result<()> {
+    match msg {
+        MessageType::Text(content) => {
+            sqlx::query("INSERT INTO messages (content, user_id) VALUES (?, ?)")
+                .bind(content)
+                .bind(user_id)
+                .execute(db)
+                .await
+                .context("Failed to insert text message into the database")?;
+        }
+        MessageType::File(name, _) => {
+            sqlx::query("INSERT INTO messages (content, user_id) VALUES (?, ?)")
+                .bind(name)
+                .bind(user_id)
+                .execute(db)
+                .await
+                .context("Failed to insert file message into the database")?;
+        }
+        MessageType::Image(_) => {
+            let timestamp = Utc::now().to_string();
+            sqlx::query("INSERT INTO messages (content, user_id) VALUES (?, ?)")
+                .bind(timestamp)
+                .bind(user_id)
+                .execute(db)
+                .await
+                .context("Failed to insert image message into the database")?;
+        }
+        MessageType::Register(_) => return Ok(()), // Should not be storing Register messages
+    }
+
+    log::debug!("Message stored in the database with user ID: {}", user_id);
+    Ok(())
+}
+
+/// Fetches, or creates a new, user_id for the anon user
+async fn get_or_create_anon_user_id(db: &Pool<Sqlite>) -> Result<i64> {
+    // Check if the anonymous user exists
+    let row = sqlx::query("SELECT id FROM users WHERE name = 'anonymous'")
+        .fetch_optional(db)
+        .await?;
+
+    if let Some(row) = row {
+        Ok(row.get("id"))
+    } else {
+        // Create the anonymous user if it does not exist
+        sqlx::query("INSERT INTO users (name) VALUES ('anonymous')")
+            .execute(db)
+            .await?;
+        let row = sqlx::query("SELECT id FROM users WHERE name = 'anonymous'")
+            .fetch_one(db)
+            .await?;
+
+        let user_id = row.get("id");
+        log::debug!(
+            "Created and added 'anonymous' user to db, user_id: {}",
+            &user_id
+        );
+
+        Ok(user_id)
+    }
+}
+
+async fn get_user_id_by_name(account: &str, db: &Pool<Sqlite>) -> Result<Option<i64>> {
+    let row = sqlx::query("SELECT id FROM users WHERE name = ?")
+        .bind(account)
+        .fetch_optional(db)
+        .await?;
+    if let Some(row) = row {
+        return Ok(Some(row.get("id")));
+    }
+    Ok(None)
 }
