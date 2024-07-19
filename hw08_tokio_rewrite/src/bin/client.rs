@@ -178,7 +178,7 @@ async fn process_server_rdr(
                 let msg_len = u32::from_be_bytes(length_bytes) as usize;
 
                 log::debug!(
-                    "Attempting to retreive a {}-byte message from the server.",
+                    "Attempting to retrieve a {}-byte message from the server.",
                     msg_len.to_string()
                 );
                 let msg = receive_msg(&mut stream, msg_len)
@@ -187,9 +187,28 @@ async fn process_server_rdr(
                 log::debug!("{:?}", msg);
 
                 match msg {
-                    MessageType::File(name, data) => save_file(name, data).await?,
-                    MessageType::Image(data) => save_image(data).await?,
-                    MessageType::Text(text) => log::info!("[RECEIVED] {}", text),
+                    MessageType::File(Some(username), name, data) => {
+                        log::info!("[RECEIVED FILE from {}] Saving to..: {}", username, name);
+                        save_file(name, data).await?
+                    }
+                    MessageType::File(None, name, data) => {
+                        log::info!("[RECEIVED FILE from anonymous] Saving to..: {}", name);
+                        save_file(name, data).await?
+                    }
+                    MessageType::Image(Some(username), data) => {
+                        log::info!("[RECEIVED IMAGE from {}]", username);
+                        save_image(data).await?
+                    }
+                    MessageType::Image(None, data) => {
+                        log::info!("[RECEIVED IMAGE from Anonymous]");
+                        save_image(data).await?
+                    }
+                    MessageType::Text(Some(username), text) => {
+                        log::info!("[{}] {}", username, text)
+                    }
+                    MessageType::Text(None, text) => {
+                        log::info!("[Anonymous] {}", text)
+                    }
                     MessageType::Register(account) => {
                         log::info!("[NEW USER LOGGED IN] {}", account)
                     }
@@ -331,11 +350,9 @@ async fn generate_message(command: Command, parts: Vec<&str>) -> Result<MessageT
                 .and_then(|name| name.to_str())
                 .context("Failed to get file name")?;
             log::debug!("[GENERATING MessageType::File] from {}", &file_name);
-            MessageType::File(String::from(file_name), data)
+            MessageType::File(None, String::from(file_name), data)
         }
         Command::Register => {
-            // Join parts excluding the command prefix to get the account name
-            // FIXME: THIS IS SO UGLY
             let account = parts
                 .iter()
                 .skip(1)
@@ -351,14 +368,13 @@ async fn generate_message(command: Command, parts: Vec<&str>) -> Result<MessageT
                 .await
                 .context("Failed to read image.")?;
             log::debug!("[GENERATING MessageType::Image] from {}", &path_str);
-            MessageType::Image(data)
+            MessageType::Image(None, data)
         }
         Command::Text => {
             let message = parts.join(" ");
             log::debug!("[GENERATING MessageType::Text] {}", &message);
-            MessageType::Text(message)
+            MessageType::Text(None, message)
         }
-        // FIXME: This should return an error, these Command types do not support conversion
         Command::Help | Command::Quit => unreachable!(),
     };
     Ok(msg)

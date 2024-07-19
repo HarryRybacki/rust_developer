@@ -128,12 +128,12 @@ async fn process_client_rdr(
                     .context("Failed to read message")?;
 
                 // If msg type is a register, attempt to add the user to the DB
-                process_message(&msg, &mut user_id, db, &internal_tx)
+                let updated_msg = process_message(&msg, &mut user_id, db, &internal_tx)
                     .await
                     .context("Failed to process message")?;
 
                 // "Wake up" the the writer task and have it handle messaging the clients
-                if tx.send((msg.clone(), addr)).is_err() {
+                if tx.send((updated_msg.clone(), addr)).is_err() {
                     log::error!(
                         "Something when wrong sending the message down the broadast channel..."
                     );
@@ -165,7 +165,7 @@ async fn process_message(
     user_id: &mut i64,
     db: &Pool<Sqlite>,
     internal_tx: &mpsc::Sender<InternalMessage>,
-) -> Result<()> {
+) -> Result<MessageType> {
     match msg {
         MessageType::Register(account) => {
             add_user_to_db(account, db)
@@ -180,11 +180,22 @@ async fn process_message(
                     .await
                     .unwrap();
             }
+            Ok(MessageType::Register(account.clone()))
         }
-        _ => store_message_in_db(msg, *user_id, db).await?,
+        _ => {
+            let username = get_username_by_id(*user_id, db).await?.unwrap_or_else(|| "anonymous".to_string());
+            let updated_msg = match msg {
+                MessageType::Text(_, content) => MessageType::Text(Some(username), content.clone()),
+                MessageType::File(_, file_name, data) => MessageType::File(Some(username), file_name.clone(), data.clone()),
+                MessageType::Image(_, data) => MessageType::Image(Some(username), data.clone()),
+                MessageType::Register(_) => unreachable!(),
+            };
+
+            store_message_in_db(&updated_msg, *user_id, db).await?;
+            Ok(updated_msg)
+        }
     }
 
-    Ok(())
 }
 
 async fn process_client_wtr(
@@ -295,7 +306,6 @@ async fn setup_db() -> Result<Pool<Sqlite>> {
 
 /// Adds a user to the database
 async fn add_user_to_db(account: &str, db: &Pool<Sqlite>) -> Result<()> {
-    // TODO: First check if user with the name exists, if so, return that user id
     sqlx::query("INSERT INTO users (name) VALUES (?)")
         .bind(account)
         .execute(db)
@@ -309,7 +319,7 @@ async fn add_user_to_db(account: &str, db: &Pool<Sqlite>) -> Result<()> {
 /// Adds a message to the database associated with a specific user_id
 async fn store_message_in_db(msg: &MessageType, user_id: i64, db: &Pool<Sqlite>) -> Result<()> {
     match msg {
-        MessageType::Text(content) => {
+        MessageType::Text(_, content) | MessageType::Text(None, content)=> {
             sqlx::query("INSERT INTO messages (content, user_id) VALUES (?, ?)")
                 .bind(content)
                 .bind(user_id)
@@ -317,7 +327,7 @@ async fn store_message_in_db(msg: &MessageType, user_id: i64, db: &Pool<Sqlite>)
                 .await
                 .context("Failed to insert text message into the database")?;
         }
-        MessageType::File(name, _) => {
+        MessageType::File(_, name, _) | MessageType::File(None, name, _) => {
             sqlx::query("INSERT INTO messages (content, user_id) VALUES (?, ?)")
                 .bind(name)
                 .bind(user_id)
@@ -325,7 +335,7 @@ async fn store_message_in_db(msg: &MessageType, user_id: i64, db: &Pool<Sqlite>)
                 .await
                 .context("Failed to insert file message into the database")?;
         }
-        MessageType::Image(_) => {
+        MessageType::Image(_, _) | MessageType::Image(None, _) => {
             let timestamp = Utc::now().to_string();
             sqlx::query("INSERT INTO messages (content, user_id) VALUES (?, ?)")
                 .bind(timestamp)
@@ -378,4 +388,12 @@ async fn get_user_id_by_name(account: &str, db: &Pool<Sqlite>) -> Result<Option<
         return Ok(Some(row.get("id")));
     }
     Ok(None)
+}
+
+async fn get_username_by_id(user_id: i64, db: &Pool<Sqlite>) -> Result<Option<String>> {
+    let row = sqlx::query("SELECT name FROM users WHERE id = ?")
+        .bind(user_id)
+        .fetch_optional(db)
+        .await?;
+    Ok(row.map(|r| r.get("name")))
 }

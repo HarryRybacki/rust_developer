@@ -19,10 +19,10 @@ pub struct User {
 /// Represents a Message consisteng of: Text, an Image, or a File.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum MessageType {
-    Text(String),
-    Image(Vec<u8>),
-    File(String, Vec<u8>),
-    Register(String),
+    Text(Option<String>, String),           // (username, message)
+    Image(Option<String>, Vec<u8>),         // (username, contents)
+    File(Option<String>, String, Vec<u8>),  // (username, filepath, contents)
+    Register(String),                       // (username)
 }
 
 impl MessageType {
@@ -87,15 +87,19 @@ impl MessageType {
 impl std::fmt::Display for MessageType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            MessageType::Text(text) => write!(f, "{} ", text),
-            MessageType::Image(_) => write!(f, "<MessageType::Image>"),
-            MessageType::File(name, _) => write!(f, "<MessageType::File>: {}", name),
+            MessageType::Text(Some(username), text) => write!(f, "[{}] {}", username, text),
+            MessageType::Text(None, text) => write!(f, "[anonymous] {}", text),
+            MessageType::Image(Some(username), _) => write!(f, "[{}] <MessageType::Image>", username),
+            MessageType::Image(None, _) => write!(f, "[anonymous] <MessageType::Image>"),
+            MessageType::File(Some(username), name, _) => write!(f, "[{}] <MessageType::File>: {}", username, name),
+            MessageType::File(None, name, _) => write!(f, "[anonymous] <MessageType::File>: {}", name),
             MessageType::Register(account) => {
                 write!(f, "<Registering user '{}' with the server>", account)
             }
         }
     }
 }
+
 
 #[derive(Error, Debug)]
 pub enum AppError {
