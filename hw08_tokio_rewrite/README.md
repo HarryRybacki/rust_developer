@@ -135,9 +135,6 @@ This assignment takes your client-server chat application to the next level by r
 ### Database Integration:
 
 - [X] Choose a database framework like **sqlx**, diesel, or any other of your preference to integrate into the server for data persistence.
-
-PICK UP HERE -- NEXT STEP IS TO LET A CLIENT REGISTER ITSELF WITH THE SERVER -- ADD A REGISTER COMMAND?
-
 - [X] Design the database to store chat messages and user data effectively.
 
 ### User Identification:
