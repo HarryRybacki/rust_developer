@@ -3,7 +3,7 @@ use env_logger::{Builder, Env};
 use hw08_tokio_rewrite::{get_hostname, receive_msg, Command, MessageType};
 use std::{env, str::FromStr};
 use tokio::{
-    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, ErrorKind},
     net::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
         TcpStream,
@@ -215,13 +215,40 @@ async fn process_server_rdr(
                 }
             }
             Err(e) => {
-                log::error!("Error reading from server: {:?}", e);
-                let _ = shutdown.cancel();
-                break;
+                if let Some(io_err) = e.downcast_ref::<std::io::Error>() {
+                    match io_err.kind() {
+                        ErrorKind::UnexpectedEof => {
+                            log::info!("Server disconnected. Shutting down...");
+                            let _ = shutdown.cancel();
+                            break;
+
+                        }
+                        ErrorKind::ConnectionReset => {
+                            log::info!("Server at connection reset. Shutting down...");
+                            let _ = shutdown.cancel();
+                            break;
+
+                        }
+                        ErrorKind::BrokenPipe => {
+                            log::info!("Server connection had broken pipe. Shutting down...");
+                            let _ = shutdown.cancel();
+                            break;
+
+                        }
+                        _ => {
+                            log::info!(
+                                "Unexpected error reading from server: {:?}",
+                                e
+                            );
+                            let _ = shutdown.cancel();
+                            break;
+
+                        }
+                    }
+                }
             }
         }
     }
-
     Ok(())
 }
 
