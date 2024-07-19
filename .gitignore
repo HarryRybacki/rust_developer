@@ -19,3 +19,6 @@ Cargo.lock
 # Ignore the images and files directories used by the client
 */images/*
 */files/*
+
+# Ignore database trash
+sqlite*
