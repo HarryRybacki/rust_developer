@@ -6,7 +6,7 @@ use sqlx::{migrate::MigrateDatabase, Pool, Row, Sqlite, SqlitePool};
 use std::{env, net::SocketAddr};
 use tokio::{
     self,
-    io::AsyncReadExt,
+    io::{AsyncReadExt, ErrorKind},
     net::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
         TcpListener,
@@ -108,7 +108,6 @@ async fn process_client_rdr(
     let mut length_bytes = [0; 4];
 
     loop {
-        // TODO: read_exact is blocking IIRC, should this task calling this function be `is_blocking` or something?
         match client_stream
             .read_exact(&mut length_bytes)
             .await
@@ -116,7 +115,7 @@ async fn process_client_rdr(
         {
             Ok(_) => {
                 let msg_len = u32::from_be_bytes(length_bytes) as usize;
-
+                
                 log::debug!(
                     "Attempting to retrieve a {}-byte message from {} at {}:",
                     msg_len.to_string(),
@@ -127,29 +126,47 @@ async fn process_client_rdr(
                     .await
                     .context("Failed to read message")?;
 
-                // If msg type is a register, attempt to add the user to the DB
                 let updated_msg = process_message(&msg, &mut user_id, db, &internal_tx)
                     .await
                     .context("Failed to process message")?;
 
-                // "Wake up" the the writer task and have it handle messaging the clients
                 if tx.send((updated_msg.clone(), addr)).is_err() {
                     log::error!(
-                        "Something when wrong sending the message down the broadast channel..."
+                        "Something went wrong sending the message down the broadcast channel..."
                     );
                 }
 
                 continue;
             }
             Err(e) => {
-                // TODO: Handle the `early eof` errors caused by clients dropping
-                log::error!(
-                    "Error reading from user {} at {}: {:?}\nLikely a client disconnect. Dropping client.",
-                    user_id,
-                    addr,
-                    e
-                );
-                // FIXME: Handle client disconnects.
+                if let Some(io_err) = e.downcast_ref::<std::io::Error>() {
+                    match io_err.kind() {
+                        ErrorKind::UnexpectedEof => {
+                            log::debug!("Client at {} disconnected gracefully.", addr);
+                        }
+                        ErrorKind::ConnectionReset => {
+                            log::debug!("Client at {} connection reset.", addr);
+                        }
+                        ErrorKind::BrokenPipe => {
+                            log::debug!("Client at {} broken pipe.", addr);
+                        }
+                        _ => {
+                            log::error!(
+                                "Error reading from user {} at {}: {:?}\nDropping client.",
+                                user_id,
+                                addr,
+                                e
+                            );
+                        }
+                    }
+                } else {
+                    log::error!(
+                        "Error reading from user {} at {}: {:?}\nDropping client.",
+                        user_id,
+                        addr,
+                        e
+                    );
+                }
                 break;
             }
         }
