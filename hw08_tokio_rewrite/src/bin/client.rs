@@ -143,6 +143,17 @@ async fn process_stdin(
                     .await
                     .context("Failed to send message to the writer task")?;
             }
+            Command::Register => {
+                if parts[0].is_empty() {
+                    log::debug!("User attempting to register without an account. Ignoring...");
+                    continue;
+                } else {
+                    let msg = generate_message(command, parts).await?;
+                    tx.send(msg)
+                        .await
+                        .context("Failed to send message to the writer task")?;
+                }
+            }
         }
     }
 
@@ -179,6 +190,9 @@ async fn process_server_rdr(
                     MessageType::File(name, data) => save_file(name, data).await?,
                     MessageType::Image(data) => save_image(data).await?,
                     MessageType::Text(text) => log::info!("[RECEIVED] {}", text),
+                    MessageType::Register(account) => {
+                        log::info!("[NEW USER LOGGED IN] {}", account)
+                    }
                 }
             }
             Err(e) => {
@@ -320,7 +334,16 @@ async fn generate_message(command: Command, parts: Vec<&str>) -> Result<MessageT
             MessageType::File(String::from(file_name), data)
         }
         Command::Register => {
-            todo!();
+            // Join parts excluding the command prefix to get the account name
+            // FIXME: THIS IS SO UGLY
+            let account = parts
+                .iter()
+                .skip(1)
+                .map(|s| *s)
+                .collect::<Vec<&str>>()
+                .join(" ");
+            log::debug!("[GENERATING MessageType::Register] {}", &account);
+            MessageType::Register(account)
         }
         Command::Image => {
             let path_str = parts.get(1).context("Missing image path.")?;

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::{error::Error, io};
 use sqlx::FromRow;
+use std::{error::Error, io};
 use thiserror::Error;
 use tokio::{
     self,
@@ -12,8 +12,8 @@ use tokio::{
 /// Represents a User
 #[derive(Clone, Debug, FromRow)]
 pub struct User {
-    id: i64,
-    name: String,
+    pub id: i64,
+    pub name: String,
 }
 
 /// Represents a Message consisteng of: Text, an Image, or a File.
@@ -22,6 +22,7 @@ pub enum MessageType {
     Text(String),
     Image(Vec<u8>),
     File(String, Vec<u8>),
+    Register(String),
 }
 
 impl MessageType {
@@ -89,6 +90,9 @@ impl std::fmt::Display for MessageType {
             MessageType::Text(text) => write!(f, "{} ", text),
             MessageType::Image(_) => write!(f, "<MessageType::Image>"),
             MessageType::File(name, _) => write!(f, "<MessageType::File>: {}", name),
+            MessageType::Register(account) => {
+                write!(f, "<Registering user '{}' with the server>", account)
+            }
         }
     }
 }
