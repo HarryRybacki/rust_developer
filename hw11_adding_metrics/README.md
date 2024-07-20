@@ -31,8 +31,11 @@ In this assignment, you will add monitoring capabilities to the server part of y
 > Ensure you have sqlite installed on your local machine. It is required by the server.
 
 Launching the server is quite simple, from the packages root directory:
+
     `RUST_LOG=<log level> cargo run --bin server <listening ip> <listening port>`
+    
 e.g.:
+
     `RUST_LOG=debug cargo run --bin server 127.0.0.1 8080`
 
 ### Prometheus
@@ -42,17 +45,25 @@ e.g.:
 The server collects metrics on the amount of messages sent across it from clients. Those metrics are served via hyper on port 8081 and can be aggregated by Prometheus using the config file provided in-tree.
 
 Launching prometheus:
+
     `prometheus --config.file=prometheus.yml`
+    
 Accessing the dashboard (from a local browser):
+
     `http://<server ip>:<server port>/graph?g0.expr=messages_sent_total`
+    
 e.g.:
+
     `http://127.0.0.1:9090/graph?g0.expr=messages_sent_total`
 
 
 ### Client
 Launching the client is just as simple:
+
     `cargo run --bin client <server ip> <server port>`
+
 e.g.
+
     `cargo run --bin client 127.0.0.1 8080`
 
 For client usage, invoke `.usage` after launching.
