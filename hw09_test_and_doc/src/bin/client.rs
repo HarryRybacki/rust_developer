@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use env_logger::{Builder, Env};
-use hw08_tokio_rewrite::{get_hostname, receive_msg, Command, MessageType};
+use hw09_test_and_doc::{get_hostname, receive_msg, Command, MessageType};
 use std::{env, str::FromStr};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, ErrorKind},
@@ -13,6 +13,24 @@ use tokio::{
 };
 use tokio_util::sync;
 
+/// Entry point for the client application.
+///
+/// This function initializes logging, processes command-line arguments to determine the server address, and manages
+/// the connection to the server. It spawns separate tasks for handling terminal input, reading from the server, and
+/// writing to the server.
+///
+/// # Example
+/// ```
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // Setup and start client application
+///     main().await?;
+///     Ok(())
+/// }
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to connect to the server or if there are issues with any of the spawned tasks.
 #[tokio::main]
 async fn main() -> Result<()> {
     // Establish our logger
@@ -31,8 +49,6 @@ async fn main() -> Result<()> {
     })?;
 
     // Create a mpsc channel to send stdin from the terminal task to server writer task
-    // NOTE: No need to clone the Sender as there will only ever be one (the client reader)
-    //       Is there a better struct for this sort of 1:1 like a rendezvous or something?
     let (tx, mut rx) = mpsc::channel::<MessageType>(1024);
 
     // Create and clone shutdown token to handle managing graceful shutdowns across tasks
@@ -88,13 +104,25 @@ async fn main() -> Result<()> {
         }
     });
 
-    // TODO: Reflect, should this be as is or should I have a select! circling between them?
     tokio::join!(stdin_task, rdr_task, wtr_task);
 
     Ok(())
 }
 
-/// Manages user input
+/// Handles user input from stdin and sends messages to the server.
+///
+/// This function reads user input, determines the command type, and sends the appropriate message to the server through
+/// a channel.
+///
+/// # Example
+/// ```
+/// let (tx, mut rx) = mpsc::channel::<MessageType>(1024);
+/// let shutdown_token = sync::CancellationToken::new();
+/// process_stdin(tx, shutdown_token.clone()).await?;
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to read from stdin or send messages.
 async fn process_stdin(
     tx: mpsc::Sender<MessageType>,
     shutdown: sync::CancellationToken,
@@ -160,7 +188,20 @@ async fn process_stdin(
     Ok(())
 }
 
-/// Manages incomming mesages from the server
+/// Reads and processes incoming messages from the server.
+///
+/// This function continuously reads messages from the server, processes them, and performs appropriate actions such as
+/// logging and saving files.
+///
+/// # Example
+/// ```
+/// let (mut reader, mut writer) = stream.into_split();
+/// let shutdown_token = sync::CancellationToken::new();
+/// process_server_rdr(reader, shutdown_token.clone()).await?;
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to read from the stream or process messages.
 async fn process_server_rdr(
     mut stream: OwnedReadHalf,
     shutdown: sync::CancellationToken,
@@ -247,9 +288,16 @@ async fn process_server_rdr(
 
 /// Saves a byte array as a file locally.
 ///
-/// Assumes filename includes extension and storing in `./files/` dir.
+/// This function creates a file in the `./files/` directory with the given name and writes the provided data to it.
 ///
-/// Returns Result of Ok or Error.
+/// # Example
+/// ```
+/// save_file("example.txt".to_string(), vec![104, 101, 108, 108, 111]).await?;
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to create the directory, convert the file path to a string, or write the
+/// data to the file.
 async fn save_file(file_name: String, data: Vec<u8>) -> Result<()> {
     // Attempt to create the path
     let path = std::path::Path::new("./files");
@@ -278,9 +326,17 @@ async fn save_file(file_name: String, data: Vec<u8>) -> Result<()> {
 
 /// Saves a byte array as an image locally.
 ///
-/// Assumes filetype is `.png` and storing in `./images/` dir.
+/// This function creates a file in the `./images/` directory with a generated name based on the current datetime and
+/// writes the provided image data to it.
 ///
-/// Returns Result of Ok or Error.
+/// # Example
+/// ```
+/// save_image(vec![137, 80, 78, 71]).await?;
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to create the directory, generate the file name, or write the data to
+/// the file.
 async fn save_image(data: Vec<u8>) -> Result<()> {
     let file_name = generate_file_name()
         .await
@@ -297,11 +353,19 @@ async fn save_image(data: Vec<u8>) -> Result<()> {
     Ok(())
 }
 
-/// Creates String representing a file's name based on the current datetime.
+/// Generates a file name based on the current datetime.
 ///
-/// Assumes filetype is `.png` and storing in `./images/` dir.
+/// This function creates a directory `./images/` if it doesn't exist and generates a filename in the format
+/// `YYYYMMDDHHMMSS.png`.
 ///
-/// Returns String or Error.
+/// # Example
+/// ```
+/// let file_name = generate_file_name().await?;
+/// println!("Generated file name: {}", file_name);
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to create the directory or generate the file name.
 async fn generate_file_name() -> Result<String> {
     let path = std::path::Path::new("./images");
     tokio::fs::create_dir_all(path)
@@ -313,7 +377,20 @@ async fn generate_file_name() -> Result<String> {
     Ok(format!("./images/{}.png", now.format("%Y%m%d%H%M%S")))
 }
 
-/// Manages sending messages to the server
+/// Manages sending messages to the server.
+///
+/// This function listens for messages from the stdin task and sends them to the server through the provided stream.
+///
+/// # Example
+/// ```
+/// let (tx, mut rx) = mpsc::channel::<MessageType>(1024);
+/// let (mut reader, mut writer) = stream.into_split();
+/// let shutdown_token = sync::CancellationToken::new();
+/// process_server_wtr(writer, &mut rx, shutdown_token.clone()).await?;
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to send messages over the stream.
 async fn process_server_wtr(
     mut stream: OwnedWriteHalf,
     rx: &mut mpsc::Receiver<MessageType>,
@@ -341,7 +418,16 @@ async fn process_server_wtr(
     Ok(())
 }
 
-/// Displays Client usage helper text.
+/// Displays client usage helper text.
+///
+/// This function logs the available commands and their usage for the client.
+///
+/// # Example
+/// ```
+/// client_usage();
+/// ```
+///
+/// This function does not return any errors.
 fn client_usage() {
     log::info!(
         "
@@ -357,7 +443,19 @@ Message broadcast options: \n\
     );
 }
 
-/// Creates a MessageType based on User cli input
+/// Creates a `MessageType` based on user CLI input.
+///
+/// This function takes a command and a vector of message parts, and generates the corresponding `MessageType`.
+///
+/// # Example
+/// ```
+/// let parts = vec!["this", "is", "a", "test"];
+/// let command = Command::Text;
+/// let message = generate_message(command, parts).await?;
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to process the message parts.
 async fn generate_message(command: Command, parts: Vec<&str>) -> Result<MessageType> {
     let msg = match command {
         Command::File => {
