@@ -2,6 +2,13 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use env_logger::{Builder, Env};
 use hw11_rust_metrics::{get_hostname, receive_msg, InternalMessage, MessageType};
+use hyper::{
+    server::Server,
+    service::{make_service_fn, service_fn},
+    {Body, Request, Response},
+};
+use lazy_static::lazy_static;
+use prometheus::{register_counter, Counter, Encoder, TextEncoder};
 use sqlx::{migrate::MigrateDatabase, Pool, Row, Sqlite, SqlitePool};
 use std::{env, net::SocketAddr};
 use tokio::{
@@ -17,10 +24,16 @@ use tokio::{
 // Using as lightweight a DB as possible
 const DB_URL: &str = "sqlite://sqlite.db";
 
+// Initialize the Prometheus counter in a thread-safe manner
+lazy_static::lazy_static! {
+    static ref MESSAGE_COUNTER: Counter = register_counter!("messages_sent_total", "Total number of messages sent").unwrap();
+}
+
 /// Entry point for the server application.
 ///
 /// This function initializes logging, sets up the SQLite database, determines the server address from command-line
-/// arguments, and manages client connections. It spawns separate tasks for handling client input and output.
+/// arguments, and manages client connections. It spawns separate tasks for handling client input and output as well
+/// as serving prometheus metrics.
 ///
 /// # Example
 /// ```
@@ -49,6 +62,12 @@ async fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     let address = get_hostname(args);
     log::info!("Launching server on address: {}", address);
+
+    // Spawn a task to serve the metrics endpoint
+    let metrics_address = ([0, 0, 0, 0], 8081).into();
+    tokio::spawn(async move {
+        serve_metrics(metrics_address).await;
+    });
 
     // Create tokio listener to establish client connections
     let listener = TcpListener::bind(address)
@@ -158,6 +177,9 @@ async fn process_client_rdr(
                         "Something went wrong sending the message down the broadcast channel..."
                     );
                 }
+
+                // Increment the Prometheus counter)
+                MESSAGE_COUNTER.inc();
 
                 continue;
             }
@@ -525,4 +547,71 @@ async fn get_username_by_id(user_id: i64, db: &Pool<Sqlite>) -> Result<Option<St
         .fetch_optional(db)
         .await?;
     Ok(row.map(|r| r.get("name")))
+}
+
+/// Serves the metrics endpoint for Prometheus scraping.
+///
+/// This function binds the server to the given address and serves the Prometheus metrics endpoint.
+/// It creates a service using `make_service_fn` and `service_fn` to handle incoming requests with the `metrics_handler` function.
+/// If the server encounters an error, it will log the error message.
+///
+/// # Arguments
+///
+/// * `addr` - A `SocketAddr` specifying the address to bind the server to.
+///
+/// # Example
+///
+/// ```rust
+/// let addr = ([0, 0, 0, 0], 8081).into();
+/// serve_metrics(addr).await;
+/// ```
+///
+/// # Errors
+///
+/// This function will print an error message if the server fails to bind to the given address or if it encounters an error while running.
+async fn serve_metrics(addr: SocketAddr) {
+    let make_svc =
+        make_service_fn(|_conn| async { Ok::<_, hyper::Error>(service_fn(metrics_handler)) });
+
+    let server = Server::bind(&addr).serve(make_svc);
+
+    if let Err(e) = server.await {
+        log::error!("Hyper error serving metrics: {}", e);
+    }
+}
+
+/// Handles incoming HTTP requests for the metrics endpoint.
+///
+/// This function gathers the Prometheus metrics, encodes them in the Prometheus text format,
+/// and returns them in the HTTP response body. The response is set with a status of 200 and the
+/// appropriate content type header for Prometheus metrics.
+///
+/// # Arguments
+///
+/// * `_req` - An incoming `Request<Body>` that is ignored since this endpoint only serves metrics.
+///
+/// # Returns
+///
+/// A `Result` containing either a `Response<Body>` with the encoded metrics or a `hyper::Error` if an error occurs.
+///
+/// # Example
+///
+/// ```rust
+/// let response = metrics_handler(req).await?;
+/// ```
+///
+/// # Errors
+///
+/// This function will return a `hyper::Error` if it fails to encode the metrics or build the response.
+async fn metrics_handler(_req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+    let encoder = TextEncoder::new();
+    let metric_families = prometheus::gather();
+    let mut buffer = Vec::new();
+    encoder.encode(&metric_families, &mut buffer).unwrap();
+
+    Ok(Response::builder()
+        .status(200)
+        .header("Content-Type", encoder.format_type())
+        .body(Body::from(buffer))
+        .unwrap())
 }
