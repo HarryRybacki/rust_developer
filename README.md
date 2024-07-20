@@ -13,3 +13,5 @@ This is the landing page for my homework submissions to the Rust Developer cours
 7. [Improved Error Handling](https://github.com/HarryRybacki/rust_developer/tree/main/hw07_improve_error_handling)
 8. [Async (Tokio) with local storage and user identification](https://github.com/HarryRybacki/rust_developer/tree/main/hw08_tokio_rewrite)
 9. [Adding some unit tests and documentation](https://github.com/HarryRybacki/rust_developer/tree/main/hw09_test_and_doc)
+10. We don't talk about front ends round here, Partner.
+11. [Adding metrics to track messages sent across the server](https://github.com/HarryRybacki/rust_developer/tree/main/hw11_adding_metrics)
