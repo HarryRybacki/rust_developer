@@ -10,13 +10,18 @@
 Launching the server is quite simple, from the packages root directory: 
     
     `RUST_LOG=<log level> cargo run --bin server <listening ip> <listening port>`
+
 e.g.
+
     `RUST_LOG=debug cargo run --bin server 127.0.0.1 8080`
 
 ### Client
 Launching the client is just as simple:
+
     `cargo run --bin client <server ip> <server port>`
+    
 e.g.
+
     `cargo run --bin client 127.0.0.1 8080`
 
 For client usage, invoke `.usage` after launching.
