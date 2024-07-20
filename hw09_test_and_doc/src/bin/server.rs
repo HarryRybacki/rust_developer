@@ -115,7 +115,7 @@ async fn process_client_rdr(
         {
             Ok(_) => {
                 let msg_len = u32::from_be_bytes(length_bytes) as usize;
-                
+
                 log::debug!(
                     "Attempting to retrieve a {}-byte message from {} at {}:",
                     msg_len.to_string(),
@@ -200,10 +200,14 @@ async fn process_message(
             Ok(MessageType::Register(account.clone()))
         }
         _ => {
-            let username = get_username_by_id(*user_id, db).await?.unwrap_or_else(|| "anonymous".to_string());
+            let username = get_username_by_id(*user_id, db)
+                .await?
+                .unwrap_or_else(|| "anonymous".to_string());
             let updated_msg = match msg {
                 MessageType::Text(_, content) => MessageType::Text(Some(username), content.clone()),
-                MessageType::File(_, file_name, data) => MessageType::File(Some(username), file_name.clone(), data.clone()),
+                MessageType::File(_, file_name, data) => {
+                    MessageType::File(Some(username), file_name.clone(), data.clone())
+                }
                 MessageType::Image(_, data) => MessageType::Image(Some(username), data.clone()),
                 MessageType::Register(_) => unreachable!(),
             };
@@ -212,7 +216,6 @@ async fn process_message(
             Ok(updated_msg)
         }
     }
-
 }
 
 async fn process_client_wtr(
@@ -336,7 +339,7 @@ async fn add_user_to_db(account: &str, db: &Pool<Sqlite>) -> Result<()> {
 /// Adds a message to the database associated with a specific user_id
 async fn store_message_in_db(msg: &MessageType, user_id: i64, db: &Pool<Sqlite>) -> Result<()> {
     match msg {
-        MessageType::Text(_, content) | MessageType::Text(None, content)=> {
+        MessageType::Text(_, content) | MessageType::Text(None, content) => {
             sqlx::query("INSERT INTO messages (content, user_id) VALUES (?, ?)")
                 .bind(content)
                 .bind(user_id)
