@@ -1,5 +1,5 @@
 [package]
-name = "hw09_test_and_doc"
+name = "hw11_rust_metrics"
 version = "0.1.0"
 edition = "2021"
 
@@ -15,3 +15,6 @@ tokio = { version = "1.38.0", features = ["full"] }
 tokio-util = "0.7.11"
 # tokio (no TLS)
 sqlx = { version = "0.7", features = [ "runtime-tokio", "sqlite"] }
+hyper = { version = "0.14", features = ["full"] }
+prometheus = "0.13.3"
+lazy_static = "1.4.0"
