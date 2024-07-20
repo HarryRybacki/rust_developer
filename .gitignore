@@ -22,3 +22,6 @@ Cargo.lock
 
 # Ignore database trash
 sqlite*
+
+# Ignore metrics data directory
+*/data/*
