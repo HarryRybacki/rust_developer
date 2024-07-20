@@ -221,28 +221,21 @@ async fn process_server_rdr(
                             log::info!("Server disconnected. Shutting down...");
                             let _ = shutdown.cancel();
                             break;
-
                         }
                         ErrorKind::ConnectionReset => {
                             log::info!("Server at connection reset. Shutting down...");
                             let _ = shutdown.cancel();
                             break;
-
                         }
                         ErrorKind::BrokenPipe => {
                             log::info!("Server connection had broken pipe. Shutting down...");
                             let _ = shutdown.cancel();
                             break;
-
                         }
                         _ => {
-                            log::info!(
-                                "Unexpected error reading from server: {:?}",
-                                e
-                            );
+                            log::info!("Unexpected error reading from server: {:?}", e);
                             let _ = shutdown.cancel();
                             break;
-
                         }
                     }
                 }
@@ -407,3 +400,52 @@ async fn generate_message(command: Command, parts: Vec<&str>) -> Result<MessageT
     Ok(msg)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::test;
+
+    #[tokio::test]
+    async fn text_command_makes_text_messagetype() {
+        let test_parts = vec!["this", "is", "a", "test"];
+        let test_cmd = Command::Text;
+        let base_msg = MessageType::Text(None, "this is a test".to_string());
+
+        let generated_msg = generate_message(test_cmd, test_parts).await.unwrap();
+
+        assert_eq!(base_msg, generated_msg);
+    }
+
+    #[tokio::test]
+    async fn text_command_does_not_make_register_messagetype() {
+        let test_parts = vec![".register", "Timothy"];
+        let test_cmd = Command::Text;
+        let base_msg = MessageType::Register("Timothy".to_string());
+
+        let generated_msg = generate_message(test_cmd, test_parts).await.unwrap();
+
+        assert_ne!(base_msg, generated_msg);
+    }
+
+    #[tokio::test]
+    async fn register_command_makes_register_messagetype() {
+        let test_parts = vec![".register", "Timothy"];
+        let test_cmd = Command::Register;
+        let base_msg = MessageType::Register("Timothy".to_string());
+
+        let generated_msg = generate_message(test_cmd, test_parts).await.unwrap();
+
+        assert_eq!(base_msg, generated_msg);
+    }
+
+    #[tokio::test]
+    async fn register_command_does_not_make_text_messagetype() {
+        let test_parts = vec![".register", "Timothy"];
+        let test_cmd = Command::Register;
+        let base_msg = MessageType::Text(None, "Timothy".to_string());
+
+        let generated_msg = generate_message(test_cmd, test_parts).await.unwrap();
+
+        assert_ne!(base_msg, generated_msg);
+    }
+}
