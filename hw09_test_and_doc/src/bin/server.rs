@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use chrono::Utc;
 use env_logger::{Builder, Env};
-use hw08_tokio_rewrite::{get_hostname, receive_msg, MessageType};
+use hw09_test_and_doc::{get_hostname, receive_msg, InternalMessage, MessageType};
 use sqlx::{migrate::MigrateDatabase, Pool, Row, Sqlite, SqlitePool};
 use std::{env, net::SocketAddr};
 use tokio::{
@@ -17,11 +17,22 @@ use tokio::{
 // Using as lightweight a DB as possible
 const DB_URL: &str = "sqlite://sqlite.db";
 
-// Enum to represent messages, including user ID updates
-enum InternalMessage {
-    UserIdUpdate(i64),
-}
-
+/// Entry point for the server application.
+///
+/// This function initializes logging, sets up the SQLite database, determines the server address from command-line
+/// arguments, and manages client connections. It spawns separate tasks for handling client input and output.
+///
+/// # Example
+/// ```
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     main().await?;
+///     Ok(())
+/// }
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to bind to the socket, set up the database, or handle client connections.
 #[tokio::main]
 async fn main() -> Result<()> {
     // Establish our logger
@@ -96,6 +107,18 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+/// Reads and processes incoming messages from a client.
+///
+/// This function continuously reads messages from a client's TCP stream, processes them, and updates the user ID if
+/// necessary.
+///
+/// # Example
+/// ```
+/// process_client_rdr(&sender, client_stream, addr, &db, internal_tx, anon_user_id).await?;
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to read from the client stream or process messages.
 async fn process_client_rdr(
     tx: &sync::broadcast::Sender<(MessageType, SocketAddr)>,
     mut client_stream: OwnedReadHalf,
@@ -176,7 +199,18 @@ async fn process_client_rdr(
     Ok(())
 }
 
-/// Processes incoming messages and handles things like DB registrations as needed
+/// Processes incoming messages and handles tasks such as database registrations.
+///
+/// This function processes different message types, updating the user ID and storing messages in the database as needed.
+///
+/// # Example
+/// ```
+/// let updated_msg = process_message(&msg, &mut user_id, db, &internal_tx).await?;
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to register a new user, retrieve a user ID, or store a message in the
+/// database.
 async fn process_message(
     msg: &MessageType,
     user_id: &mut i64,
@@ -218,6 +252,18 @@ async fn process_message(
     }
 }
 
+/// Manages writing messages to a client.
+///
+/// This function listens for broadcast messages and internal messages, sending the appropriate responses to the client's
+/// TCP stream.
+///
+/// # Example
+/// ```
+/// process_client_wtr(receiver, &mut stream_wtr, addr, &db, internal_rx).await?;
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to send messages over the TCP stream.
 async fn process_client_wtr(
     mut rx: sync::broadcast::Receiver<(MessageType, SocketAddr)>,
     stream: &mut OwnedWriteHalf,
@@ -271,7 +317,18 @@ async fn process_client_wtr(
     Ok(())
 }
 
-/// Establishes the DB for server use
+/// Establishes the SQLite database for server use.
+///
+/// This function creates the database if it doesn't exist, connects to it, and executes migrations to set up necessary
+/// tables.
+///
+/// # Example
+/// ```
+/// let db = setup_db().await?;
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to create the database, connect to it, or execute migrations.
 async fn setup_db() -> Result<Pool<Sqlite>> {
     // Create DB if it doesn't already exist
     if !Sqlite::database_exists(DB_URL).await.unwrap_or(false) {
@@ -324,7 +381,17 @@ async fn setup_db() -> Result<Pool<Sqlite>> {
     Ok(db)
 }
 
-/// Adds a user to the database
+/// Adds a user to the database.
+///
+/// This function inserts a new user into the database.
+///
+/// # Example
+/// ```
+/// add_user_to_db("username", &db).await?;
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to insert the user into the database.
 async fn add_user_to_db(account: &str, db: &Pool<Sqlite>) -> Result<()> {
     sqlx::query("INSERT INTO users (name) VALUES (?)")
         .bind(account)
@@ -336,7 +403,17 @@ async fn add_user_to_db(account: &str, db: &Pool<Sqlite>) -> Result<()> {
     Ok(())
 }
 
-/// Adds a message to the database associated with a specific user_id
+/// Stores a message in the database associated with a specific user ID.
+///
+/// This function inserts a message into the database.
+///
+/// # Example
+/// ```
+/// store_message_in_db(&msg, user_id, &db).await?;
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to insert the message into the database.
 async fn store_message_in_db(msg: &MessageType, user_id: i64, db: &Pool<Sqlite>) -> Result<()> {
     match msg {
         MessageType::Text(_, content) | MessageType::Text(None, content) => {
@@ -371,7 +448,17 @@ async fn store_message_in_db(msg: &MessageType, user_id: i64, db: &Pool<Sqlite>)
     Ok(())
 }
 
-/// Fetches, or creates a new, user_id for the anon user
+/// Fetches or creates a new user ID for the anonymous user.
+///
+/// This function checks if the anonymous user exists in the database, creating a new entry if it does not.
+///
+/// # Example
+/// ```
+/// let anon_user_id = get_or_create_anon_user_id(&db).await?;
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to fetch or create the anonymous user in the database.
 async fn get_or_create_anon_user_id(db: &Pool<Sqlite>) -> Result<i64> {
     // Check if the anonymous user exists
     let row = sqlx::query("SELECT id FROM users WHERE name = 'anonymous'")
@@ -399,6 +486,17 @@ async fn get_or_create_anon_user_id(db: &Pool<Sqlite>) -> Result<i64> {
     }
 }
 
+/// Retrieves the user ID for a given username.
+///
+/// This function fetches the user ID from the database for the specified username.
+///
+/// # Example
+/// ```
+/// let user_id = get_user_id_by_name("username", &db).await?;
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to fetch the user ID from the database.
 async fn get_user_id_by_name(account: &str, db: &Pool<Sqlite>) -> Result<Option<i64>> {
     let row = sqlx::query("SELECT id FROM users WHERE name = ?")
         .bind(account)
@@ -410,6 +508,17 @@ async fn get_user_id_by_name(account: &str, db: &Pool<Sqlite>) -> Result<Option<
     Ok(None)
 }
 
+/// Retrieves the username for a given user ID.
+///
+/// This function fetches the username from the database for the specified user ID.
+///
+/// # Example
+/// ```
+/// let username = get_username_by_id(user_id, &db).await?;
+/// ```
+///
+/// # Errors
+/// This function returns an error if it fails to fetch the username from the database.
 async fn get_username_by_id(user_id: i64, db: &Pool<Sqlite>) -> Result<Option<String>> {
     let row = sqlx::query("SELECT name FROM users WHERE id = ?")
         .bind(user_id)
