@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: httpd-test
+  name: httpd-test
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: httpd-test
+  template:
+    metadata:
+      labels:
+        app: httpd-test
+    spec:
+      containers:
+      - image: httpd:alpine3.19
+        name: httpd
+        command: ["/bin/bash", "-c"] # override the default command
+        args: ["sleep 5; exit 1"] # sleep for 30 secs then exit with an error
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+
